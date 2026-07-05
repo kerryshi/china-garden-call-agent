@@ -41,11 +41,14 @@ class Order:
         self.lines.append(line)
         return line
 
-    def find_line(self, query_item: MenuItem) -> OrderLine | None:
-        for line in self.lines:
-            if line.item.id == query_item.id:
-                return line
-        return None
+    def find_line(self, query_item: MenuItem,
+                  size_name: str | None = None) -> OrderLine | None:
+        matches = [line for line in self.lines if line.item.id == query_item.id]
+        if size_name:
+            sized = [line for line in matches if line.size.name == size_name]
+            if sized:
+                return sized[0]
+        return matches[0] if matches else None
 
     def remove(self, line: OrderLine) -> None:
         self.lines.remove(line)

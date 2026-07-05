@@ -4,6 +4,10 @@ RuleBackend is deterministic and is what tests (and the default CLI) use.
 HaikuBackend calls cloud Claude Haiku via forced tool use; it is constructed
 only when explicitly selected and requires the [llm] extra + credentials.
 Tests must never depend on a live API call (AGENTS.md rule).
+
+Parse priority is safety-first and state-aware (ordering matters — the
+2026-07-05 review showed misordered checks confirm wrong orders):
+  allergen > human > READ_BACK corrections > goodbye > FAQ > done > remove > set_qty > add
 """
 
 from __future__ import annotations
@@ -25,6 +29,28 @@ _NUMBER_WORDS = {
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
 }
 _SIZE_WORDS = {"pint": "pint", "quart": "quart", "small": "pint", "large": "quart"}
+
+# Safety first: false-positive handoffs are acceptable by policy; a missed
+# allergen question is not. "sesame"/"egg" alone collide with menu items, so
+# they only appear in unambiguous forms.
+_ALLERGEN = (
+    r"\b(allerg\w*|peanut\w*|nuts?|tree nut|gluten|celiac|dairy|milk|lactose|"
+    r"shellfish|shrimp|soy|msg|sesame oil|vegan|vegetarian)\b|\bcontains?\b"
+)
+_HUMAN = r"\b(person|human|manager|operator|somebody|someone|staff)\b"
+_AFFIRM = r"\b(yes|yeah|yep|correct|right|sounds good|perfect|sure)\b"
+_NEGATE = r"\b(no|not|nope|wrong|isn'?t|actually)\b"
+_REMOVAL = r"\b(remove|take\b.*\boff|cancel|no more|drop|scratch|get rid of)\b"
+_REMOVAL_VERBS = r"\b(remove|take|off|cancel|no more|drop|scratch|get rid of)\b"
+_DONE = (r"(that'?s (it|all)|thats (it|all)|that'?ll be (all|it)|nothing else|"
+         r"i'?m done|all done|that'?s everything|thats everything)")
+_PURE_CLOSE = r"^(no|nope|no thanks?|no thank you|nothing|done|all done|i'?m done)[\s.!]*$"
+_QUESTION = r"^(how|what|what'?s|why|when|where|who|do you|does|is|are|can you)\b"
+_GOODBYE = r"\b(goodbye|bye)\b"
+_SET_QTY = r"\b(?:make|change) (?:that|it)(?: to)?\s+(\w+)\b"
+_STRIP = (r"\b(\d+|" + "|".join(_NUMBER_WORDS) + r"|" + "|".join(_SIZE_WORDS)
+          + r"|of|the|please|also|add|i'?d like|i want|i'?ll (have|take)|"
+          r"can i (get|have)|get|order|gimme|give me|extra \w+|no \w+|spicy|mild)\b")
 
 
 @dataclass
@@ -57,64 +83,129 @@ class RuleBackend:
 
     def __init__(self, menu: Menu):
         self.menu = menu
+        # dish names/aliases containing " and " must not be split by the
+        # conjunction chunker ("hot and sour soup" is one item, not two)
+        phrases = set()
+        for item in menu.items:
+            for cand in (item.name, *item.aliases):
+                if " and " in cand.lower():
+                    phrases.add(cand.lower())
+        self._and_phrases = sorted(phrases, key=len, reverse=True)
 
     def parse(self, utterance: str, context: Context) -> list[Intent]:
         text = utterance.lower().strip()
         if not text:
             return [Intent("unknown")]
 
-        if re.search(r"\b(allerg|peanut|gluten|shellfish|msg)\w*", text):
+        if re.search(_ALLERGEN, text):
             return [Intent("allergen")]
-        if re.search(r"\b(person|human|manager|operator|somebody|someone real)\b", text):
+        if re.search(_HUMAN, text):
             return [Intent("request_human")]
-        if re.search(r"\b(bye|goodbye|thank you, bye|that's everything, bye)\b", text):
-            return [Intent("goodbye")]
-
-        for topic, pattern in (
-            ("hours", r"\b(hours?|open|close|closing|opening)\b"),
-            ("delivery", r"\bdeliver\w*|door ?dash|grub ?hub\b"),
-            ("payment", r"\b(pay|payment|card|credit|cash|apple pay)\b"),
-            ("address", r"\b(address|where are you|located|location)\b"),
-            ("phone", r"\b(phone number|number)\b"),
-        ):
-            if re.search(pattern, text):
-                return [Intent("faq", topic=topic)]
 
         if context.state == "READ_BACK":
-            if re.search(r"\b(yes|yeah|yep|correct|right|that's it|sounds good|good)\b", text):
-                return [Intent("confirm")]
-            if re.search(r"\b(no|nope|wrong|not right|actually)\b", text):
-                return [Intent("deny")]
+            return self._parse_read_back(text)
 
-        if re.search(r"\b(that's (it|all)|that is (it|all)|nothing else|i'?m done|done)\b", text):
+        if re.search(_GOODBYE, text):
+            return [Intent("goodbye")]
+
+        faq = self._match_faq(text)
+        if faq:
+            # an utterance can carry an order AND a question - keep both
+            return [faq, *self._parse_items(text)]
+
+        if context.state == "ORDERING" and re.match(_PURE_CLOSE, text):
             return [Intent("done_ordering")]
 
-        removal = re.search(r"\b(remove|take off|cancel|no more|drop|scratch)\b(.*)", text)
-        if removal and context.state in ("ORDERING", "OPEN"):
-            item = self.menu.find(removal.group(2))
-            if item:
-                return [Intent("remove_item", item_query=item.name)]
+        done = re.search(_DONE, text)
+        if done:
+            remainder = text.replace(done.group(0), " ")
+            return [*self._parse_items(remainder), Intent("done_ordering")]
+
+        if re.search(_REMOVAL, text):
+            return self._parse_removal(text)
+
+        set_qty = self._parse_set_qty(text)
+        if set_qty:
+            return set_qty
 
         intents = self._parse_items(text)
         if intents:
             return intents
         return [Intent("unknown")]
 
+    def _parse_read_back(self, text: str) -> list[Intent]:
+        """Corrections outrank confirmation; confirm only without contradiction."""
+        if re.search(_REMOVAL, text):
+            return self._parse_removal(text)
+        items = self._parse_items(text)
+        if re.search(_NEGATE, text):
+            return [Intent("deny"), *items]
+        if items:
+            return items  # additions reopen ORDERING; read-back reruns
+        if re.search(_AFFIRM, text):
+            return [Intent("confirm")]
+        return [Intent("unknown")]
+
+    def _match_faq(self, text: str) -> Intent | None:
+        for topic, pattern in (
+            ("hours", r"\b(hours?|open|close|closing|opening)\b"),
+            ("delivery", r"\bdeliver\w*|door ?dash|grub ?hub\b"),
+            ("payment", r"\b(pay|payment|card|credit|cash|apple pay)\b"),
+            ("address", r"\b(address|where are you|located|location)\b"),
+            ("phone", r"\b(phone number|your number|what'?s the number)\b"),
+        ):
+            if re.search(pattern, text):
+                return Intent("faq", topic=topic)
+        return None
+
+    def _parse_removal(self, text: str) -> list[Intent]:
+        stripped = re.sub(_REMOVAL_VERBS, " ", text)
+        stripped = re.sub(r"\b(the|of|my|from|order|please)\b", " ", stripped)
+        item = self.menu.find(stripped.strip())
+        if not item:
+            # a removal request must NEVER fall through to an add
+            return [Intent("unknown")]
+        size = ""
+        for word, canonical in _SIZE_WORDS.items():
+            if re.search(rf"\b{word}\b", text):
+                size = canonical
+                break
+        return [Intent("remove_item", item_query=item.name, size=size)]
+
+    def _parse_set_qty(self, text: str) -> list[Intent] | None:
+        m = re.search(_SET_QTY, text)
+        if not m:
+            return None
+        word = m.group(1)
+        qty = _NUMBER_WORDS.get(word) if not word.isdigit() else int(word)
+        if qty is None:
+            return None
+        rest = text[m.end():].strip()
+        item = self.menu.find(re.sub(_STRIP, " ", rest).strip()) if rest else None
+        return [Intent("set_qty", item_query=item.name if item else "", qty=max(0, qty))]
+
     def _parse_items(self, text: str) -> list[Intent]:
+        masked = text
+        for phrase in self._and_phrases:
+            masked = masked.replace(phrase, phrase.replace(" and ", " & "))
         intents: list[Intent] = []
-        for chunk in re.split(r"\band\b|,", text):
+        for chunk in re.split(r"\band\b|,", masked):
             chunk = chunk.strip()
             if not chunk:
                 continue
+            if re.match(_QUESTION, chunk):
+                continue  # "how much is X" / "do you have X" is not an order
             qty = 1
-            m = re.search(r"\b(\d+)\b", chunk)
-            if m:
-                qty = int(m.group(1))
-            else:
+            digit = re.search(r"\b(\d+)\b", chunk)
+            piece_count = re.search(r"\b\d+\s*(?:piece|pieces|pc|pcs)\b", chunk)
+            if digit and not piece_count:
+                qty = int(digit.group(1))
+            elif not digit:
                 for word, n in _NUMBER_WORDS.items():
                     if re.search(rf"\b{word}\b", chunk):
                         qty = n
                         break
+            qty = max(1, qty)
             size = ""
             for word, canonical in _SIZE_WORDS.items():
                 if re.search(rf"\b{word}\b", chunk):
@@ -122,14 +213,11 @@ class RuleBackend:
                     break
             notes = ""
             note_match = re.search(r"\b(extra \w+|no \w+|spicy|mild)\b", chunk)
-            if note_match and not self.menu.find(note_match.group(1)):
+            # only suppress a note that IS a menu item verbatim - fuzzy
+            # collisions ("no rice" ~ White Rice) must not eat the note
+            if note_match and not self.menu.find_exact(note_match.group(1)):
                 notes = note_match.group(1)
-            item = self.menu.find(
-                re.sub(r"\b(\d+|" + "|".join(_NUMBER_WORDS) + r"|"
-                       + "|".join(_SIZE_WORDS) + r"|of|the|please|i'?d like|i want|"
-                       r"can i (get|have)|get|order|extra \w+|no \w+|spicy|mild)\b",
-                       " ", chunk).strip()
-            )
+            item = self.menu.find(re.sub(_STRIP, " ", chunk).strip())
             if item:
                 intents.append(Intent("add_item", item_query=item.name, qty=qty,
                                       size=size, notes=notes))
@@ -209,7 +297,8 @@ class HaikuBackend:
             "'' unless the caller names one; allergy/ingredient-safety questions "
             "are kind=allergen (never answer them); requests for a person are "
             "kind=request_human; in the READ_BACK state a plain agreement is "
-            "kind=confirm and a correction is kind=deny."
+            "kind=confirm and a correction is kind=deny - never confirm an "
+            "utterance that also asks for a change."
         )
 
     def parse(self, utterance: str, context: Context) -> list[Intent]:
