@@ -1,0 +1,22 @@
+{
+  "_comment": "PLACEHOLDERS to confirm with the family before any live use: hours, sales_tax_bps, pickup_minutes. Address/phone are real.",
+  "name": "China Garden",
+  "address": "3207 S Holden Rd, Greensboro, NC 27407",
+  "phone": "(336) 852-6222",
+  "hours": {
+    "_placeholder": true,
+    "monday": "11:00 AM - 9:30 PM",
+    "tuesday": "11:00 AM - 9:30 PM",
+    "wednesday": "11:00 AM - 9:30 PM",
+    "thursday": "11:00 AM - 9:30 PM",
+    "friday": "11:00 AM - 10:00 PM",
+    "saturday": "11:00 AM - 10:00 PM",
+    "sunday": "12:00 PM - 9:30 PM"
+  },
+  "sales_tax_bps": 675,
+  "pickup_minutes": 15,
+  "payment_policy": "You pay at pickup - we take cash and cards at the counter. For your security we never take card numbers over this automated line.",
+  "delivery_policy": "We don't deliver ourselves - you can order delivery through DoorDash or Grubhub. Pickup orders are welcome on this line.",
+  "allergen_policy": "For any allergy or ingredient-safety question I need to hand you to a person - your safety matters too much for me to guess.",
+  "ai_disclosure": "Thanks for calling China Garden! I'm an automated assistant - I can answer questions and take your pickup order, or say 'person' anytime to talk to a human."
+}

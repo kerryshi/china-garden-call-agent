@@ -1,0 +1,96 @@
+{
+  "_comment": "STARTER MENU - placeholder items and prices (cents). Replace with the real China Garden menu; items/prices are the family's call.",
+  "items": [
+    {
+      "id": "egg_roll",
+      "name": "Egg Roll",
+      "aliases": ["egg rolls", "eggroll"],
+      "sizes": [{ "name": "", "price_cents": 175 }]
+    },
+    {
+      "id": "spring_roll",
+      "name": "Spring Roll",
+      "aliases": ["spring rolls"],
+      "sizes": [{ "name": "", "price_cents": 175 }]
+    },
+    {
+      "id": "crab_rangoon",
+      "name": "Crab Rangoon (6)",
+      "aliases": ["crab rangoon", "crab rangoons", "cheese wonton", "cheese wontons"],
+      "sizes": [{ "name": "", "price_cents": 595 }]
+    },
+    {
+      "id": "wonton_soup",
+      "name": "Wonton Soup",
+      "aliases": ["wonton", "won ton soup"],
+      "sizes": [
+        { "name": "pint", "price_cents": 350 },
+        { "name": "quart", "price_cents": 595 }
+      ]
+    },
+    {
+      "id": "hot_sour_soup",
+      "name": "Hot and Sour Soup",
+      "aliases": ["hot sour soup", "hot and sour"],
+      "sizes": [
+        { "name": "pint", "price_cents": 350 },
+        { "name": "quart", "price_cents": 595 }
+      ]
+    },
+    {
+      "id": "chicken_fried_rice",
+      "name": "Chicken Fried Rice",
+      "aliases": ["fried rice with chicken", "chicken rice"],
+      "sizes": [
+        { "name": "pint", "price_cents": 650 },
+        { "name": "quart", "price_cents": 995 }
+      ]
+    },
+    {
+      "id": "chicken_lo_mein",
+      "name": "Chicken Lo Mein",
+      "aliases": ["lo mein with chicken", "chicken noodles", "lo mein"],
+      "sizes": [
+        { "name": "pint", "price_cents": 675 },
+        { "name": "quart", "price_cents": 1050 }
+      ]
+    },
+    {
+      "id": "general_tso",
+      "name": "General Tso's Chicken",
+      "aliases": ["general tso", "general tsos chicken", "general chicken", "general tso chicken"],
+      "sizes": [{ "name": "", "price_cents": 1250 }],
+      "note": "served with white rice"
+    },
+    {
+      "id": "sesame_chicken",
+      "name": "Sesame Chicken",
+      "aliases": ["sesame"],
+      "sizes": [{ "name": "", "price_cents": 1250 }],
+      "note": "served with white rice"
+    },
+    {
+      "id": "beef_broccoli",
+      "name": "Beef with Broccoli",
+      "aliases": ["beef broccoli", "broccoli beef"],
+      "sizes": [{ "name": "", "price_cents": 1295 }],
+      "note": "served with white rice"
+    },
+    {
+      "id": "sweet_sour_chicken",
+      "name": "Sweet and Sour Chicken",
+      "aliases": ["sweet sour chicken", "sweet and sour"],
+      "sizes": [{ "name": "", "price_cents": 1195 }],
+      "note": "served with white rice"
+    },
+    {
+      "id": "white_rice",
+      "name": "White Rice",
+      "aliases": ["rice", "steamed rice"],
+      "sizes": [
+        { "name": "pint", "price_cents": 250 },
+        { "name": "quart", "price_cents": 425 }
+      ]
+    }
+  ]
+}
