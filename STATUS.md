@@ -24,7 +24,9 @@ goodbye losing unplaced orders.
 - Live-smoke the HaikuBackend once credentials are on this box
   (`pip install -e .[llm]`, then `python -m china_garden.cli --backend haiku`).
 - Slice 2 candidates: CPU STT/TTS spike on the old PC, Asterisk/FXO, Haiku
-  live hardening, price-FAQ intent ("how much is X" currently gets a fallback).
+  live hardening, price-FAQ intent ("how much is X" currently gets a fallback),
+  handoff briefing (HANDOFF replies don't carry the order-so-far for the human
+  who picks up - the telephony layer will need it; safety-lens NIT).
 
 **Open questions:**
 - Old PC as dev+on-prem box: when to set it up?

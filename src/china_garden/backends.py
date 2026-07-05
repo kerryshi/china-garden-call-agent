@@ -35,8 +35,12 @@ _SIZE_WORDS = {"pint": "pint", "quart": "quart", "small": "pint", "large": "quar
 # they only appear in unambiguous forms.
 _ALLERGEN = (
     r"\b(allerg\w*|peanut\w*|nuts?|tree nut|gluten|celiac|dairy|milk|lactose|"
-    r"shellfish|shrimp|soy|msg|sesame oil|vegan|vegetarian)\b|\bcontains?\b"
+    r"shellfish|shrimp|fish|soy|msg|sesame oil|vegan|vegetarian|ingredients?)\b"
+    r"|\bcontains?\b|\bwhat'?s in\b|\bwhat is in\b|\bsafe (to eat|for)\b"
+    r"|\bcook\w* with\b|\bhave \w+ in (it|that)\b"
 )
+# a long digit run is someone reading a card number - refuse per PCI policy
+_CARD_DIGITS = r"\d[\d\s\-]{11,}\d"
 _HUMAN = r"\b(person|human|manager|operator|somebody|someone|staff)\b"
 _AFFIRM = r"\b(yes|yeah|yep|correct|right|sounds good|perfect|sure)\b"
 _NEGATE = r"\b(no|not|nope|wrong|isn'?t|actually)\b"
@@ -101,6 +105,10 @@ class RuleBackend:
             return [Intent("allergen")]
         if re.search(_HUMAN, text):
             return [Intent("request_human")]
+        if re.search(_CARD_DIGITS, text):
+            # caller is reading a card number - deliver the PCI refusal (and
+            # still take any items in the same breath)
+            return [Intent("faq", topic="payment"), *self._parse_items(text)]
 
         if context.state == "READ_BACK":
             return self._parse_read_back(text)
@@ -150,7 +158,8 @@ class RuleBackend:
         for topic, pattern in (
             ("hours", r"\b(hours?|open|close|closing|opening)\b"),
             ("delivery", r"\bdeliver\w*|door ?dash|grub ?hub\b"),
-            ("payment", r"\b(pay|payment|card|credit|cash|apple pay)\b"),
+            ("payment", r"\b(pay|payment|card|credit|cash|apple pay|visa|"
+                        r"mastercard|amex|discover|debit)\b"),
             ("address", r"\b(address|where are you|located|location)\b"),
             ("phone", r"\b(phone number|your number|what'?s the number)\b"),
         ):
@@ -310,7 +319,11 @@ class HaikuBackend:
             tool_choice={"type": "tool", "name": "record_intents"},
             messages=[{
                 "role": "user",
-                "content": f"Dialog state: {context.state}\nCaller said: {utterance}",
+                "content": (
+                    f"Dialog state: {context.state}\n"
+                    f"Order so far: {', '.join(context.order_item_ids) or 'empty'}\n"
+                    f"Caller said: {utterance}"
+                ),
             }],
         )
         for block in response.content:
@@ -320,7 +333,9 @@ class HaikuBackend:
                     Intent(
                         kind=i.get("kind", "unknown"),
                         item_query=i.get("item_query", ""),
-                        qty=max(1, int(i.get("qty", 1))),
+                        # set_qty may legitimately be 0 (= remove the line)
+                        qty=max(0 if i.get("kind") == "set_qty" else 1,
+                                int(i.get("qty", 1))),
                         size=i.get("size", ""),
                         notes=i.get("notes", ""),
                         topic=i.get("topic", ""),

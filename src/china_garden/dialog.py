@@ -84,6 +84,10 @@ class DialogSession:
                 options = " or ".join(s.name for s in item.sizes)
                 return Reply(f"{item.name} comes in {options} - which would you like?",
                              self.state)
+            if intent.qty > 20:
+                # an STT mis-hear shouldn't silently create a $7,000 order
+                return Reply(f"Just to check - did you really want {intent.qty} of "
+                             f"the {item.name}?", self.state)
             line = self.order.add(item, qty=intent.qty,
                                   size_name=intent.size or None, notes=intent.notes)
             self.state = "ORDERING"
