@@ -1,7 +1,8 @@
 # STATUS — china-garden call agent
 
 **Where we are:** slice 1 (conversation core) BUILT, reviewed, and hardened —
-`eff81c9`. A full takeout call runs end-to-end in text: AI-disclosed greeting →
+`eff81c9`, plus safety-lens hardening `8d8123c` (ingredient-question handoffs,
+PCI phrasings, Haiku clamp). A full takeout call runs end-to-end in text: AI-disclosed greeting →
 FAQ → multi-item order → mandatory read-back → confirm → kitchen ticket.
 Deterministic RuleBackend is the default; HaikuBackend (claude-haiku-4-5,
 forced tool use, strict schema) sits behind the same interface, live-untested
@@ -32,4 +33,4 @@ goodbye losing unplaced orders.
 - Old PC as dev+on-prem box: when to set it up?
 - Kitchen ticket hand-off: printer at the restaurant, or screen for now?
 
-**Last updated:** 2026-07-05 (autonomous session; slice 1 shipped)
+**Last updated:** 2026-07-05 (autonomous session; slice 1 shipped; safety-lens hardening 8d8123c noted)
