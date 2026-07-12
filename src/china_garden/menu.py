@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .money import fmt_cents
+
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 # tokens that change WHICH dish is meant - a mismatch means "ask, don't guess"
@@ -41,6 +43,16 @@ class MenuItem:
             if s.name == name:
                 return s
         return None
+
+
+def price_text(item: MenuItem) -> str:
+    """Spoken price line - multi-size items state every size, never one guess."""
+    if len(item.sizes) == 1 and not item.sizes[0].name:
+        return f"{item.name} is {fmt_cents(item.sizes[0].price_cents)}."
+    sizes = ", ".join(
+        f"{fmt_cents(s.price_cents)} for a {s.name}" for s in item.sizes
+    )
+    return f"{item.name} is {sizes}."
 
 
 class Menu:

@@ -25,12 +25,21 @@ goodbye losing unplaced orders.
 - Live-smoke the HaikuBackend once credentials are on this box
   (`pip install -e .[llm]`, then `python -m china_garden.cli --backend haiku`).
 - Slice 2 candidates: CPU STT/TTS spike on the old PC, Asterisk/FXO, Haiku
-  live hardening, price-FAQ intent ("how much is X" currently gets a fallback),
-  handoff briefing (HANDOFF replies don't carry the order-so-far for the human
-  who picks up - the telephony layer will need it; safety-lens NIT).
+  live hardening, handoff briefing (HANDOFF replies don't carry the order-so-far
+  for the human who picks up - the telephony layer will need it; safety-lens NIT).
+  (price-FAQ intent SHIPPED 2026-07-12 - see below.)
 
 **Open questions:**
 - Old PC as dev+on-prem box: when to set it up?
 - Kitchen ticket hand-off: printer at the restaurant, or screen for now?
 
-**Last updated:** 2026-07-05 (autonomous session; slice 1 shipped; safety-lens hardening 8d8123c noted)
+**Shipped 2026-07-12 (Mac, via the v2 harness — its first real-size task):**
+price-FAQ intent ("how much is X" / "what does X cost" / "cost of X") answers
+from data/menu.json; multi-size items quote both sizes; multi-item questions
+answer the first-mentioned item; unresolved price questions short-circuit to a
+clarification and can NEVER place an order (two harness-review must-fix rounds
+proved that fallthrough). 115 tests green (23 new in tests/test_price_faq.py,
+all failing-first), ruff clean. Harness run record:
+agentic-workflow/runs/2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call/.
+
+**Last updated:** 2026-07-12 (price-FAQ intent shipped through the harness on the Mac)

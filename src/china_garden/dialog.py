@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from . import faq as faq_mod
 from .backends import Context, Intent, LLMBackend
 from .faq import Restaurant
-from .menu import Menu
+from .menu import Menu, price_text
 from .order import Order
 from .ticket import format_ticket
 
@@ -73,6 +73,14 @@ class DialogSession:
                          done=True)
         if intent.kind == "faq":
             return Reply(faq_mod.answer(intent.topic, self.restaurant), self.state)
+
+        if intent.kind == "item_price":
+            item = self.menu.find(intent.item_query)
+            if not item:
+                return Reply(
+                    "Sorry, I'm not sure which item you mean - could you say it "
+                    "another way?", self.state)
+            return Reply(price_text(item), self.state)
 
         if intent.kind == "add_item":
             item = self.menu.find(intent.item_query)

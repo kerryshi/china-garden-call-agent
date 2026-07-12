@@ -7,7 +7,7 @@ Tests must never depend on a live API call (AGENTS.md rule).
 
 Parse priority is safety-first and state-aware (ordering matters — the
 2026-07-05 review showed misordered checks confirm wrong orders):
-  allergen > human > READ_BACK corrections > goodbye > FAQ > done > remove > set_qty > add
+  allergen > human > READ_BACK corrections > goodbye > FAQ > price > done > remove > set_qty > add
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from .menu import Menu
 
 KINDS = (
     "add_item", "remove_item", "set_qty", "done_ordering", "confirm", "deny",
-    "faq", "allergen", "request_human", "goodbye", "unknown",
+    "faq", "item_price", "allergen", "request_human", "goodbye", "unknown",
 )
 FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment")
 
@@ -49,12 +49,20 @@ _REMOVAL_VERBS = r"\b(remove|take|off|cancel|no more|drop|scratch|get rid of)\b"
 _DONE = (r"(that'?s (it|all)|thats (it|all)|that'?ll be (all|it)|nothing else|"
          r"i'?m done|all done|that'?s everything|thats everything)")
 _PURE_CLOSE = r"^(no|nope|no thanks?|no thank you|nothing|done|all done|i'?m done)[\s.!]*$"
-_QUESTION = r"^(how|what|what'?s|why|when|where|who|do you|does|is|are|can you)\b"
+_QUESTION = (r"^(how|what|what'?s|why|when|where|who|do you|does|is|are|can you|"
+             r"price|cost)\b")
 _GOODBYE = r"\b(goodbye|bye)\b"
 _SET_QTY = r"\b(?:make|change) (?:that|it)(?: to)?\s+(\w+)\b"
 _STRIP = (r"\b(\d+|" + "|".join(_NUMBER_WORDS) + r"|" + "|".join(_SIZE_WORDS)
           + r"|of|the|please|also|add|i'?d like|i want|i'?ll (have|take)|"
           r"can i (get|have)|get|order|gimme|give me|extra \w+|no \w+|spicy|mild)\b")
+# "how much is/are/does/do X" | "what(...) X cost" | "price/cost of/for X" -
+# tried in order, each captures the item text into group 1
+_PRICE_QUESTION_PATTERNS = (
+    r"how much (?:is|are|does|do)\b\s*(.+)",
+    r"what(?:'?s| is| are| does| do)?\b\s*(.+?)\s+cost\b",
+    r"\b(?:price|cost)\b\s*(?:of|for)\s+(.+)",
+)
 
 
 @dataclass
@@ -121,6 +129,13 @@ class RuleBackend:
             # an utterance can carry an order AND a question - keep both
             return [faq, *self._parse_items(text)]
 
+        price = self._match_item_price(text)
+        if price:
+            # unlike FAQ, a price question's remainder is not a safe order
+            # add - "how much are the egg rolls and crab rangoon" must not
+            # silently add crab rangoon to the order (review finding)
+            return [price]
+
         if context.state == "ORDERING" and re.match(_PURE_CLOSE, text):
             return [Intent("done_ordering")]
 
@@ -167,6 +182,40 @@ class RuleBackend:
                 return Intent("faq", topic=topic)
         return None
 
+    def _match_item_price(self, text: str) -> Intent | None:
+        matched = False
+        best_raw = ""
+        for pattern in _PRICE_QUESTION_PATTERNS:
+            m = re.search(pattern, text)
+            if not m:
+                continue
+            matched = True
+            raw = re.sub(r"\bcost\b", " ", m.group(1)).strip(" ?.!")
+            # chunk on 'and'/',' the way _parse_items does - resolving the
+            # whole multi-item remainder as one query lets Menu.find's
+            # tie-break answer a menu.json-earlier item instead of the one
+            # the caller said first (review finding)
+            for chunk in self._split_item_chunks(raw):
+                cleaned = re.sub(_STRIP, " ", chunk).strip()
+                if not cleaned:
+                    continue
+                item = self.menu.find(cleaned)
+                if item:
+                    return Intent("item_price", item_query=item.name)
+            # keep trying later patterns before giving up - pattern 2 can
+            # capture only filler ("what is THE cost of X" -> 'the') while
+            # pattern 3 still holds the real item (review finding)
+            cleaned_raw = re.sub(_STRIP, " ", raw).strip()
+            if len(cleaned_raw) > len(best_raw):
+                best_raw = cleaned_raw
+        if matched:
+            # still a price question even with no resolvable item - emit it
+            # unresolved so parse() short-circuits into the dialog
+            # clarification; falling through to _parse_items can place a
+            # real order (review finding)
+            return Intent("item_price", item_query=best_raw)
+        return None
+
     def _parse_removal(self, text: str) -> list[Intent]:
         stripped = re.sub(_REMOVAL_VERBS, " ", text)
         stripped = re.sub(r"\b(the|of|my|from|order|please)\b", " ", stripped)
@@ -193,15 +242,17 @@ class RuleBackend:
         item = self.menu.find(re.sub(_STRIP, " ", rest).strip()) if rest else None
         return [Intent("set_qty", item_query=item.name if item else "", qty=max(0, qty))]
 
-    def _parse_items(self, text: str) -> list[Intent]:
+    def _split_item_chunks(self, text: str) -> list[str]:
+        """Split a multi-item utterance on 'and'/',' - dish names/aliases
+        containing ' and ' are masked first so they stay whole."""
         masked = text
         for phrase in self._and_phrases:
             masked = masked.replace(phrase, phrase.replace(" and ", " & "))
+        return [chunk.strip() for chunk in re.split(r"\band\b|,", masked) if chunk.strip()]
+
+    def _parse_items(self, text: str) -> list[Intent]:
         intents: list[Intent] = []
-        for chunk in re.split(r"\band\b|,", masked):
-            chunk = chunk.strip()
-            if not chunk:
-                continue
+        for chunk in self._split_item_chunks(text):
             if re.match(_QUESTION, chunk):
                 continue  # "how much is X" / "do you have X" is not an order
             qty = 1
@@ -305,7 +356,9 @@ class HaikuBackend:
             "Rules: one intent per distinct request; qty defaults to 1; size is "
             "'' unless the caller names one; allergy/ingredient-safety questions "
             "are kind=allergen (never answer them); requests for a person are "
-            "kind=request_human; in the READ_BACK state a plain agreement is "
+            "kind=request_human; a caller asking the price/cost of a menu item "
+            "is kind=item_price with item_query set to that item, never a "
+            "made-up price; in the READ_BACK state a plain agreement is "
             "kind=confirm and a correction is kind=deny - never confirm an "
             "utterance that also asks for a change."
         )
