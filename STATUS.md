@@ -25,9 +25,8 @@ goodbye losing unplaced orders.
 - Live-smoke the HaikuBackend once credentials are on this box
   (`pip install -e .[llm]`, then `python -m china_garden.cli --backend haiku`).
 - Slice 2 candidates: CPU STT/TTS spike on the old PC, Asterisk/FXO, Haiku
-  live hardening, handoff briefing (HANDOFF replies don't carry the order-so-far
-  for the human who picks up - the telephony layer will need it; safety-lens NIT).
-  (price-FAQ intent SHIPPED 2026-07-12 - see below.)
+  live hardening. (price-FAQ intent AND handoff briefing SHIPPED 2026-07-12 -
+  see below.)
 
 **Open questions:**
 - Old PC as dev+on-prem box: when to set it up?
@@ -42,4 +41,11 @@ proved that fallthrough). 115 tests green (23 new in tests/test_price_faq.py,
 all failing-first), ruff clean. Harness run record:
 agentic-workflow/runs/2026-07-12_1617_add-a-price-faq-intent-to-the-china-garden-call/.
 
-**Last updated:** 2026-07-12 (price-FAQ intent shipped through the harness on the Mac)
+**Also shipped 2026-07-12 (the v2.1 harness's proof run):** handoff briefing —
+`Reply` gains a caller-safe `order_summary` snapshot (item/qty/size/notes) and a
+natural "order saved" line when a HANDOFF happens mid-order, so the telephony
+layer can brief the human who picks up. Empty-order handoffs byte-identical to
+before. 122 tests green (7 new, failing-first), ruff clean. Run record:
+agentic-workflow/runs/2026-07-12_1811_add-a-handoff-briefing-to-the-china-garden-call/.
+
+**Last updated:** 2026-07-12 (price-FAQ + handoff briefing shipped through the harness on the Mac)

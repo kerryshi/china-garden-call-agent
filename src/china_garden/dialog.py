@@ -21,6 +21,7 @@ class Reply:
     text: str
     state: str
     done: bool = False
+    order_summary: list[dict] | None = None
 
 
 class DialogSession:
@@ -45,7 +46,8 @@ class DialogSession:
             reply = self._apply(intent)
             texts.append(reply.text)
             if reply.done or self.state == "HANDOFF":
-                return Reply("\n".join(t for t in texts if t), self.state, reply.done)
+                return Reply("\n".join(t for t in texts if t), self.state, reply.done,
+                             order_summary=reply.order_summary)
             if self.state == "READ_BACK" and context.state != "READ_BACK":
                 # entered READ_BACK this turn: the caller has not heard the
                 # read-back yet, so any further intents (e.g. a same-utterance
@@ -53,14 +55,20 @@ class DialogSession:
                 break
         return Reply("\n".join(t for t in texts if t), self.state)
 
+    def _handoff(self, message: str) -> Reply:
+        self.state = "HANDOFF"
+        order_summary = self.order.summary() if self.order.lines else None
+        text = message
+        if order_summary:
+            text += ("\nI've saved your order so far - the person you're speaking "
+                     "with can see it.")
+        return Reply(text, self.state, done=True, order_summary=order_summary)
+
     def _apply(self, intent: Intent) -> Reply:
         if intent.kind == "allergen":
-            self.state = "HANDOFF"
-            return Reply(self.restaurant.allergen_policy, self.state, done=True)
+            return self._handoff(self.restaurant.allergen_policy)
         if intent.kind == "request_human":
-            self.state = "HANDOFF"
-            return Reply("No problem - one moment while I get a person for you.",
-                         self.state, done=True)
+            return self._handoff("No problem - one moment while I get a person for you.")
         if intent.kind == "goodbye":
             if self.order.lines and self.state != "CONFIRMED":
                 # never let a caller hang up believing an unplaced order exists

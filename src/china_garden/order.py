@@ -66,6 +66,14 @@ class Order:
     def total_cents(self) -> int:
         return self.subtotal_cents + self.tax_cents
 
+    def summary(self) -> list[dict[str, str | int]]:
+        """Compact, caller-safe snapshot for a human handoff briefing."""
+        return [
+            {"item": line.item.name, "qty": line.qty, "size": line.size.name,
+             "notes": line.notes}
+            for line in self.lines
+        ]
+
     def read_back(self) -> str:
         """The confirmation script: every line, then the total. Never skipped."""
         if not self.lines:
