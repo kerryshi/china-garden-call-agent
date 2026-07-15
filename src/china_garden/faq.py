@@ -25,6 +25,7 @@ class Restaurant:
     delivery_policy: str
     allergen_policy: str
     ai_disclosure: str
+    catering: str | None = None
 
     @classmethod
     def load(cls, path: Path | None = None) -> Restaurant:
@@ -41,6 +42,7 @@ class Restaurant:
             delivery_policy=raw["delivery_policy"],
             allergen_policy=raw["allergen_policy"],
             ai_disclosure=raw["ai_disclosure"],
+            catering=raw.get("catering"),
         )
 
 
@@ -57,4 +59,6 @@ def answer(topic: str, r: Restaurant) -> str:
         return r.delivery_policy
     if topic == "payment":
         return r.payment_policy
+    if topic == "catering" and r.catering:
+        return r.catering
     return "I'm not sure about that one - say 'person' and I'll get someone who knows."

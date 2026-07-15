@@ -22,7 +22,7 @@ KINDS = (
     "add_item", "remove_item", "set_qty", "done_ordering", "confirm", "deny",
     "faq", "item_price", "allergen", "request_human", "goodbye", "unknown",
 )
-FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment")
+FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment", "catering")
 
 _NUMBER_WORDS = {
     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -171,6 +171,8 @@ class RuleBackend:
 
     def _match_faq(self, text: str) -> Intent | None:
         for topic, pattern in (
+            ("catering", r"\b(cater\w*|large order|big order|bulk order|"
+                         r"party (tray|order|platter)|feed a (crowd|party))\b"),
             ("hours", r"\b(hours?|open|close|closing|opening)\b"),
             ("delivery", r"\bdeliver\w*|door ?dash|grub ?hub\b"),
             ("payment", r"\b(pay|payment|card|credit|cash|apple pay|visa|"

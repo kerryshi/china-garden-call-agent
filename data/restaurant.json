@@ -18,5 +18,6 @@
   "payment_policy": "You pay at pickup - we take cash and cards at the counter. For your security we never take card numbers over this automated line.",
   "delivery_policy": "We don't deliver ourselves - you can order delivery through DoorDash or Grubhub. Pickup orders are welcome on this line.",
   "allergen_policy": "For any allergy or ingredient-safety question I need to hand you to a person - your safety matters too much for me to guess.",
+  "catering": "We don't offer catering or large-party orders - but I'm glad to take a regular pickup order for you, or say 'person' if you'd like to talk to someone about it.",
   "ai_disclosure": "Thanks for calling China Garden! I'm an automated assistant - I can answer questions and take your pickup order, or say 'person' anytime to talk to a human."
 }
