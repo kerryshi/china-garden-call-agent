@@ -8,10 +8,10 @@ Deterministic RuleBackend is the default; HaikuBackend (claude-haiku-4-5,
 forced tool use, strict schema) sits behind the same interface, live-untested
 (no API credentials exercised on this box yet).
 
-**Quality evidence:** 77 tests green (36 are regressions from an independent
-3-lens review that drove ~50 adversarial probe conversations — see
-`tests/test_review_regressions.py`), ruff clean, demo transcript
-(`python -m china_garden.cli --script demo`) correct incl. tax math.
+**Quality evidence:** 127 tests green (verified 2026-07-15; 36 are regressions
+from an independent 3-lens review that drove ~50 adversarial probe
+conversations — see `tests/test_review_regressions.py`), ruff clean, demo
+transcript (`python -m china_garden.cli --script demo`) correct incl. tax math.
 Review MUST-FIXes all applied: deny-vs-confirm ordering, 'and'-in-dish-name
 double-adds, removal fallthrough, allergen coverage, bare-"no" mismatch,
 goodbye losing unplaced orders.
@@ -25,8 +25,8 @@ goodbye losing unplaced orders.
 - Live-smoke the HaikuBackend once credentials are on this box
   (`pip install -e .[llm]`, then `python -m china_garden.cli --backend haiku`).
 - Slice 2 candidates: CPU STT/TTS spike on the old PC, Asterisk/FXO, Haiku
-  live hardening. (price-FAQ intent AND handoff briefing SHIPPED 2026-07-12 -
-  see below.)
+  live hardening. (price-FAQ intent AND handoff briefing SHIPPED 2026-07-12,
+  catering FAQ SHIPPED 2026-07-15 - see below.)
 
 **Open questions:**
 - Old PC as dev+on-prem box: when to set it up?
@@ -48,4 +48,11 @@ layer can brief the human who picks up. Empty-order handoffs byte-identical to
 before. 122 tests green (7 new, failing-first), ruff clean. Run record:
 agentic-workflow/runs/2026-07-12_1811_add-a-handoff-briefing-to-the-china-garden-call/.
 
-**Last updated:** 2026-07-12 (price-FAQ + handoff briefing shipped through the harness on the Mac)
+**Shipped 2026-07-15 (desktop, via the v2 harness — queue day):** catering /
+large-order FAQ — family-confirmed decline: no catering service, but large
+takeout orders welcome with advance notice; answers from `data/restaurant.json`
+(no hardcoded policy text) via `faq.py` + `backends.py`. `47d7185`, 127 tests
+green (5 new in `tests/test_catering_faq.py`), ruff clean. Run record:
+agentic-workflow/runs/2026-07-15_1519_add-a-catering-large-order-faq-topic-to-the-chin/.
+
+**Last updated:** 2026-07-15 (catering FAQ shipped through the harness; test/evidence counts refreshed)
