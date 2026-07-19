@@ -18,6 +18,37 @@ goodbye losing unplaced orders.
 
 **In progress:** nothing mid-flight; working tree clean.
 
+**CI gate (2026-07-19, PRD WS4):** pre-commit hook at `.githooks/pre-commit`
+runs `ruff check --no-cache .` + `python -m pytest -q` via the repo venv
+(per-OS path from `.githooks/env.sh`: `.venv/Scripts/python.exe` on Windows,
+`.venv/bin/python` on the Mac). Install per clone (hooks are repo content, the
+config is not): `git config core.hooksPath .githooks`. Installed + proven on
+the desktop: planted ruff red refused (exit 1, HEAD unmoved at `7f149ed`),
+planted pytest red refused (1 failed/127 passed, exit 1, HEAD unmoved), green
+commit `d87dc20` passed with the hook firing. Runtime ~1.8–3.2s measured vs
+the 10s budget — no demotion needed. Stripped-env commit proof: see the commit
+that added this paragraph. Refuse-over-skip: missing venv is a named refusal
+with the create recipe (`python -m venv .venv && .venv/*/pip install -e ".[dev]"`).
+`.gitattributes` pins LF on `.githooks/*` so the hooks run under `sh` on the Mac.
+**Named holes (accepted):** `--no-verify` bypasses the gate; rebase/cherry-pick
+run no hooks (rewritten commits land unchecked); a GUI-client (VS Code) commit
+has not yet been exercised — named gap for Kerry.
+**Mac leg — BLOCKED 2026-07-19 (Mac asleep/unreachable):** two ssh attempts
+timed out (`ssh mac`, exit 255, "connect to host 100.102.79.63 port 22:
+Connection timed out"). The hook + env.sh are committed on master and travel by
+`git push mac master` once it wakes. Install recipe on the Mac (unproven there
+until watched refusing):
+1. From the desktop: `git push mac master`.
+2. On the Mac: `cd ~/Projects/china-garden && git config core.hooksPath .githooks`.
+3. If no `.venv` exists there: attempt a commit and watch the hook's NAMED
+   missing-venv refusal — that observation IS the refuse-over-skip proof for
+   the venv-less state. Green commits then need: `python3 -m venv .venv &&
+   .venv/bin/pip install -e ".[dev]"`.
+4. With a venv: plant a red (working-tree failing test), attempt a commit,
+   watch the refusal with HEAD unmoved, clean up, then a green commit.
+Until step 4 is recorded, the Mac clone is gated on paper only —
+decoration-by-omission per the PRD, so this is a live TODO, not done.
+
 **Next actions:**
 - Kerry: validate the missed-calls premise (call the restaurant at dinner rush).
 - Kerry: replace `data/menu.json` starter menu + confirm `data/restaurant.json`
@@ -55,4 +86,4 @@ takeout orders welcome with advance notice; answers from `data/restaurant.json`
 green (5 new in `tests/test_catering_faq.py`), ruff clean. Run record:
 agentic-workflow/runs/2026-07-15_1519_add-a-catering-large-order-faq-topic-to-the-chin/.
 
-**Last updated:** 2026-07-15 (catering FAQ shipped through the harness; test/evidence counts refreshed)
+**Last updated:** 2026-07-19 (pre-commit CI gate installed + refuse-proven on desktop; Mac leg blocked, recipe above)
