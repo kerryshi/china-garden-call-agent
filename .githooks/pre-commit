@@ -1,0 +1,25 @@
+#!/bin/sh
+# china-garden pre-commit gate: ruff + full pytest via the repo venv.
+# Budget: <=10s (measured 2026-07-19: ~3.2s for ruff + 127 tests).
+# Known holes (named in STATUS.md): --no-verify bypasses; rebase/cherry-pick run no hooks.
+
+. "$(dirname "$0")/env.sh"
+
+if [ ! -x "$VENV_PY" ]; then
+  echo "pre-commit REFUSED: repo venv missing ($VENV_PY not found/executable)." >&2
+  echo "Create it: python -m venv .venv && .venv/*/pip install -e \".[dev]\"" >&2
+  echo "Refuse-over-skip: a gate that goes quiet has failed." >&2
+  exit 1
+fi
+
+cd "$REPO_DIR" || { echo "pre-commit REFUSED: cannot cd to $REPO_DIR" >&2; exit 1; }
+
+echo "pre-commit: ruff check --no-cache ." >&2
+"$VENV_PY" -m ruff check --no-cache . || {
+  echo "pre-commit REFUSED: ruff findings above. Commit blocked." >&2; exit 1; }
+
+echo "pre-commit: pytest -q" >&2
+"$VENV_PY" -m pytest -q || {
+  echo "pre-commit REFUSED: test failures above. Commit blocked." >&2; exit 1; }
+
+exit 0
