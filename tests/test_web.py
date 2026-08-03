@@ -143,7 +143,7 @@ def test_claude_cli_backend_selected_or_loud():
     if data["backend"] == "rule":  # box without the claude CLI
         assert data["backend_note"]
     else:
-        assert data["backend"] == "claude"
+        assert data["backend"] == "hybrid"
 
 
 def test_haiku_backend_falls_back_visibly_without_credentials():

@@ -17,8 +17,8 @@
              padding:14px 22px;border-bottom:1px solid var(--line);background:var(--card)}
   .brand{font-weight:700;letter-spacing:.4px}
   .brand small{font-weight:400;color:var(--muted);margin-left:10px}
-  #lang-toggle{border:1px solid var(--line);background:var(--bg);border-radius:20px;
-               padding:6px 14px;cursor:pointer;font-size:14px}
+  .zhsub{display:block;font-size:.85em;opacity:.72;font-weight:400;margin-top:1px}
+  .hint,.transfer,.callstate{white-space:pre-line}
   main.split{display:grid;grid-template-columns:400px 1fr;gap:26px;
              padding:26px;max-width:1270px;margin:0 auto}
   @media (max-width:920px){main.split{grid-template-columns:1fr}}
@@ -138,13 +138,12 @@
              font-size:15px}
   .roi .out{margin-left:auto;text-align:right}
   .roi .out .big{font-size:22px;font-weight:700;color:var(--red)}
-  .roi .math{color:var(--muted);font-size:12px;margin-top:8px}
+  .roi .math{color:var(--muted);font-size:12px;margin-top:8px;white-space:pre-line}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="brand">takeline <small data-i18n="tagline">live demo — the AI that answers the calls you miss</small></div>
-  <button id="lang-toggle">中文</button>
 </header>
 
 <main class="split">
@@ -269,7 +268,7 @@ const I18N = {
     micLbl:"speak", micLangLbl:"mic lang", hfLbl:"hands-free", spkLbl:"voice", endLbl:"end",
     voiceKokoro:"voice: Kokoro (local neural)", voiceSystem:"voice: system",
     voiceOff:"voice: off",
-    brainRules:"brain: offline rules (demo)", brainHaiku:"brain: Claude AI",
+    brainRules:"brain: offline rules (demo)", brainHaiku:"brain: instant rules + Claude AI",
     hintOffline:"Offline: the mic needs internet — use macOS dictation (fn fn) or type.",
     hintHandoff:"The call would now ring the restaurant's own phone.",
     transfer:"→ transferring to a person — your phone rings",
@@ -310,7 +309,7 @@ const I18N = {
     micLbl:"说话", micLangLbl:"识别语言", hfLbl:"免提", spkLbl:"语音", endLbl:"挂断",
     voiceKokoro:"语音：Kokoro（本地神经网络）", voiceSystem:"语音：系统",
     voiceOff:"语音：关",
-    brainRules:"大脑：离线规则（演示）", brainHaiku:"大脑：Claude AI",
+    brainRules:"大脑：离线规则（演示）", brainHaiku:"大脑：规则秒答 + Claude AI",
     hintOffline:"当前离线：麦克风需要网络——请用 Mac 听写（按两下 fn）或直接输入。",
     hintHandoff:"此时电话会转回您店里的电话。",
     transfer:"→ 正在转接真人——您的电话响起",
@@ -343,23 +342,31 @@ const I18N = {
     roiMath:(c,a,l)=>`每周漏接 ${c} 通 × 4.3 周 × $${a}，只按一半是真想下单的算 ≈ 每月流失约 $${l}。`,
   },
 };
-let lang = "en";
-function t(key){ return I18N[lang][key]; }
+/* The page is permanently bilingual: English with Chinese subtext under
+   every string - the audience is majority Chinese. */
+function bi(key, sep){
+  const en = I18N.en[key], zh = I18N.zh[key];
+  if (typeof en !== "string") return "";
+  return (zh && zh !== en) ? en + (sep === undefined ? "\n" : sep) + zh : en;
+}
+function setBi(el, key){
+  const en = I18N.en[key], zh = I18N.zh[key];
+  el.textContent = en;
+  if (zh && zh !== en){
+    const s = document.createElement("span");
+    s.className = "zhsub"; s.textContent = zh;
+    el.appendChild(s);
+  }
+}
+function t(key){ return bi(key, " · "); }  /* inline combo for small chrome */
 function applyLang(){
-  document.querySelectorAll("[data-i18n]").forEach(el => {
-    const key = el.getAttribute("data-i18n");
-    if (typeof I18N[lang][key] === "string") el.textContent = I18N[lang][key];
-  });
-  document.getElementById("say").placeholder = t("typeHere");
-  document.getElementById("lang-toggle").textContent = lang === "en" ? "中文" : "English";
-  const startBtn = document.getElementById("start-call");
-  startBtn.textContent = hasCalled ? t("callAgain") : t("startCall");
+  document.querySelectorAll("[data-i18n]").forEach(el => setBi(el, el.getAttribute("data-i18n")));
+  document.getElementById("say").placeholder =
+    I18N.en.typeHere + " · " + I18N.zh.typeHere;
+  setBi(document.getElementById("start-call"), hasCalled ? "callAgain" : "startCall");
   document.getElementById("transcript-toggle").textContent = t("transcriptShow");
   renderTicket(); roi(); updateVoiceBadge(); updateCallState();
 }
-document.getElementById("lang-toggle").onclick = () => {
-  lang = lang === "en" ? "zh" : "en"; applyLang();
-};
 
 /* ---------------- state ---------------- */
 let sessionId = null, inCall = false, hasCalled = false, callT0 = 0, timerIv = null;
@@ -604,7 +611,7 @@ function endCall(silent){
   setTimeout(() => {
     $("callscreen").style.display = "none";
     $("idle-screen").style.display = "flex";
-    $("start-call").textContent = t("callAgain");
+    setBi($("start-call"), "callAgain");
     $("timer").textContent = "";
   }, silent ? 0 : 1400);
 }
@@ -619,12 +626,15 @@ async function send(){
   stopMic();
   caption("you", text);
   logBubble("caller", text);
-  playFiller(/[一-鿿]/.test(text));
+  // acknowledge only if the answer hasn't already arrived (hybrid: most
+  // turns are instant rules; only Claude-escalated ones need masking)
+  const fillerTimer = setTimeout(() => playFiller(/[一-鿿]/.test(text)), 650);
   const resp = await fetch("/api/chat", {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({session_id: sessionId, utterance: text}),
   });
   const turn = await resp.json();
+  clearTimeout(fillerTimer);
   lastOrder = turn.order; lastTotals = turn.totals; confirmedTicket = turn.ticket;
   renderTicket();
   if (turn.state === "READ_BACK") hit("p-readback");
@@ -654,8 +664,9 @@ const money = c => "$" + (c / 100).toFixed(2);
 function renderTicket(){
   const pre = $("ticket");
   if (confirmedTicket){ pre.textContent = confirmedTicket; return; }
-  if (!lastOrder.length){ pre.textContent = t("ticketEmpty"); return; }
-  const W = 32, lines = ["=".repeat(W), center(t("ticketDraft"), W), "-".repeat(W)];
+  if (!lastOrder.length){ pre.textContent = bi("ticketEmpty"); return; }
+  const W = 32, lines = ["=".repeat(W), center(I18N.en.ticketDraft, W),
+                         center(I18N.zh.ticketDraft, W), "-".repeat(W)];
   for (const l of lastOrder){
     lines.push(`${l.qty} x ${l.size ? l.size + " " : ""}${l.item}`);
     if (l.notes) lines.push(`    ** ${l.notes.toUpperCase()} **`);
@@ -678,7 +689,8 @@ function roi(){
   const avg = +$("roi-avg").value || 0;
   const lost = Math.round(calls * 4.3 * avg * 0.5);
   $("roi-lost").textContent = "$" + lost.toLocaleString();
-  $("roi-math").textContent = I18N[lang].roiMath(calls, avg, lost.toLocaleString());
+  $("roi-math").textContent = I18N.en.roiMath(calls, avg, lost.toLocaleString())
+    + "\n" + I18N.zh.roiMath(calls, avg, lost.toLocaleString());
 }
 $("roi-calls").oninput = roi;
 $("roi-avg").oninput = roi;

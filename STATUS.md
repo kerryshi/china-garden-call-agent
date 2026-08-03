@@ -14,6 +14,14 @@ haiku fallback verified, full greeting through Kokoro 200/320KB.
 **BLOCKED on Kerry:** Anthropic API key on desktop+Mac for the Haiku live
 smoke (then `CG_BACKEND=haiku` in the LaunchAgent env).
 
+**Round 5: hybrid brain + fully bilingual page** — CG_BACKEND=claude now
+builds HybridBackend: RuleBackend answers instantly (0.00-0.03s measured);
+only parses containing unknown escalate to the persistent Claude CLI (~4s,
+masked by a delayed spoken acknowledgment that no longer fires if the answer
+beat it). "a couple/few" added to number words (longest-match scan). The demo
+page dropped the EN/中文 toggle: every string renders English with Chinese
+subtext beneath (majority-Chinese audience). 173 tests green.
+
 **Round 4: subscription brain LIVE** — `ClaudeCliBackend` parses via headless
 `claude -p --model claude-haiku-4-5 --output-format json` on the box's Claude
 Code login (no API key; plan usage). Shared intent builder with HaikuBackend;

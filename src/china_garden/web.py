@@ -91,12 +91,13 @@ def create_app(tts: object = "auto", backend: str | None = None) -> FastAPI:
     requested = (backend or os.environ.get("CG_BACKEND", "rule")).lower()
     backend_name, backend_note = "rule", ""
     make_backend = lambda: RuleBackend(menu)  # noqa: E731
-    if requested in ("claude", "claude-cli", "sub"):
+    if requested in ("claude", "claude-cli", "sub", "hybrid"):
         try:
-            from .backends import ClaudeCliBackend
-            probe = ClaudeCliBackend(menu)  # raises if the CLI is missing
+            from .backends import ClaudeCliBackend, HybridBackend
+            probe = HybridBackend(RuleBackend(menu),
+                                  ClaudeCliBackend(menu))  # raises w/o the CLI
             probe.warm()  # spawn the persistent CLI before the first caller
-            backend_name = "claude"
+            backend_name = "hybrid"
             make_backend = lambda: probe  # noqa: E731  (stateless per call)
         except Exception as e:  # visible degradation, never silent
             backend_note = f"claude CLI unavailable ({e}); using rules"

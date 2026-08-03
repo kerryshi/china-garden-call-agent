@@ -33,6 +33,7 @@ FAQ_TOPICS = ("hours", "address", "phone", "delivery", "payment", "catering")
 _NUMBER_WORDS = {
     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "couple": 2, "few": 3,
 }
 _SIZE_WORDS = {"pint": "pint", "quart": "quart", "small": "pint", "large": "quart"}
 
@@ -438,7 +439,9 @@ class RuleBackend:
             if digit and not piece_count:
                 qty = int(digit.group(1))
             elif not digit:
-                for word, n in _NUMBER_WORDS.items():
+                # longest word first: "a couple" must hit couple=2, not a=1
+                for word, n in sorted(_NUMBER_WORDS.items(),
+                                      key=lambda kv: -len(kv[0])):
                     if re.search(rf"\b{word}\b", chunk):
                         qty = n
                         break
@@ -747,3 +750,25 @@ class ClaudeCliBackend:
             return _intents_from_raw(data.get("intents", []))
         except Exception:
             return [Intent("unknown")]
+
+
+class HybridBackend:
+    """Instant rules with Claude as the safety net.
+
+    The deterministic RuleBackend answers in microseconds; only when its
+    parse contains an unknown does the utterance escalate to the Claude CLI
+    (seconds). Clean turns feel instant, messy ones still get understood.
+    """
+
+    def __init__(self, rules: RuleBackend, cli: ClaudeCliBackend):
+        self.rules = rules
+        self.cli = cli
+
+    def warm(self) -> None:
+        self.cli.warm()
+
+    def parse(self, utterance: str, context: Context) -> list[Intent]:
+        intents = self.rules.parse(utterance, context)
+        if all(i.kind != "unknown" for i in intents):
+            return intents
+        return self.cli.parse(utterance, context)
