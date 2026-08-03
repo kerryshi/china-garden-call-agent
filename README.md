@@ -43,6 +43,19 @@ the OS Chinese voice. Voice input: 🎤 works when online in Chrome (cloud STT; 
 for recognition language). Offline, use macOS dictation — press fn twice — or type.
 To show the page on a phone without deploying: `cloudflared tunnel --url http://localhost:8000`.
 
+**Understanding backend** (`CG_BACKEND`): `rule` (default — deterministic, offline, rigid),
+`claude` (the real brain on the **Claude Max plan** — headless `claude -p` on the machine's
+Claude Code login, no API key; ~8–12s/turn), or `haiku` (direct API, needs a key; fast lane).
+Terminal run with the subscription brain:
+
+```
+CG_BACKEND=claude .venv/bin/python -m uvicorn china_garden.web:app --port 8000
+```
+
+The badge under the avatar always shows which brain and voice are live; a missing CLI or
+credentials degrades loudly to rules, never silently. Read-back/allergen/PCI guarantees are
+enforced by the state machine on every backend.
+
 ## Layout
 
 - `src/china_garden/` — package (menu, faq, order, dialog, backends, ticket, cli, web)
