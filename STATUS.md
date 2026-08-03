@@ -1,5 +1,19 @@
 # STATUS — china-garden call agent
 
+**Shipped 2026-08-03 (desktop, round 3): voice-bug fix + bilingual display +
+Haiku wiring** — root cause of "voice sounds terrible": the greeting's zh tail
+made /api/tts 400 and the page latched onto the system voice for the whole
+call — Kokoro was never heard. Fixed: greeting split en/zh in data, /api/tts
+strips CJK from mixed text (400 only when nothing English remains), client
+only disables Kokoro on 503/transport errors. Every reply now carries BOTH
+languages (reply_en/reply_zh; dialog renders both, state mutates once) and the
+caption/transcript show them stacked. CG_BACKEND=haiku switches understanding
+to cloud Claude Haiku with a credential probe that refuses loudly (badge shows
+"brain: rules/Claude AI" + note). 158 tests green, ruff clean; smoke: loud
+haiku fallback verified, full greeting through Kokoro 200/320KB.
+**BLOCKED on Kerry:** Anthropic API key on desktop+Mac for the Haiku live
+smoke (then `CG_BACKEND=haiku` in the LaunchAgent env).
+
 **Shipped 2026-08-03 (desktop, round 2): Chinese + call-feel + neural voice** —
 (1) the agent understands Simplified Chinese: CJK-aware menu matching (zh
 names/aliases in menu.json), a zh RuleBackend path mirroring the safety-first

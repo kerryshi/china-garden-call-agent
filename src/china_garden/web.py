@@ -2,14 +2,18 @@
 
 A thin HTTP layer over DialogSession - no dialog logic lives here. Serves the
 split-view demo page (caller phone UI on the left, restaurant-side panels on
-the right) plus the small JSON API the page drives. Everything is local and
-offline-capable: no external assets, no cloud calls (RuleBackend only).
+the right) plus the small JSON API the page drives. Fully offline with the
+default rule backend; set CG_BACKEND=haiku (plus Anthropic credentials) to
+run understanding through cloud Claude Haiku - the money/safety state machine
+stays deterministic either way.
 
 Run:  .venv/Scripts/python.exe -m uvicorn china_garden.web:app --port 8000
 """
 
 from __future__ import annotations
 
+import os
+import re
 import uuid
 from collections import OrderedDict
 from pathlib import Path
@@ -65,15 +69,41 @@ def _spoken_text(text: str) -> str:
     return text.split(_TICKET_RULE)[0].rstrip()
 
 
-def create_app(tts: object = "auto") -> FastAPI:
+_CJK_STRIP = re.compile(r"[一-鿿][一-鿿。！？，、“”‘’——]*")
+
+
+def _english_only(text: str) -> str:
+    """Drop CJK segments so mixed text can still go through the en voice."""
+    return re.sub(r"\s{2,}", " ", _CJK_STRIP.sub(" ", text)).strip()
+
+
+def create_app(tts: object = "auto", backend: str | None = None) -> FastAPI:
     """tts: "auto" loads Kokoro lazily if installed; None disables (503);
-    anything else is used as the engine (tests inject a fake)."""
+    anything else is used as the engine (tests inject a fake).
+    backend: "rule" (default) or "haiku"; None reads CG_BACKEND."""
     menu = Menu.load()
     restaurant = Restaurant.load()
     sessions: OrderedDict[str, DialogSession] = OrderedDict()
     tts_state = {"engine": None if tts in ("auto", None) else tts,
                  "tried": tts != "auto"}
     app = FastAPI(title="China Garden call agent demo")
+
+    requested = (backend or os.environ.get("CG_BACKEND", "rule")).lower()
+    backend_name, backend_note = "rule", ""
+    make_backend = lambda: RuleBackend(menu)  # noqa: E731
+    if requested == "haiku":
+        try:
+            from .backends import HaikuBackend
+            probe = HaikuBackend(menu)  # raises without the [llm] extra
+            # the SDK can construct credential-less and fail only at request
+            # time - refuse now instead of 500ing mid-call
+            if not (getattr(probe.client, "api_key", None)
+                    or getattr(probe.client, "auth_token", None)):
+                raise RuntimeError("no Anthropic credentials on this machine")
+            backend_name = "haiku"
+            make_backend = lambda: probe  # noqa: E731  (client is stateless)
+        except Exception as e:  # visible degradation, never silent
+            backend_note = f"haiku unavailable ({e.__class__.__name__}: {e}); using rules"
 
     def _tts_engine():
         if not tts_state["tried"]:
@@ -83,7 +113,7 @@ def create_app(tts: object = "auto") -> FastAPI:
 
     @app.post("/api/session")
     def create_session() -> dict:
-        session = DialogSession(menu, restaurant, RuleBackend(menu))
+        session = DialogSession(menu, restaurant, make_backend())
         session_id = uuid.uuid4().hex
         sessions[session_id] = session
         while len(sessions) > MAX_SESSIONS:
@@ -91,6 +121,9 @@ def create_app(tts: object = "auto") -> FastAPI:
         return {
             "session_id": session_id,
             "greeting": session.greeting(),
+            "greeting_zh": session.greeting_zh(),
+            "backend": backend_name,
+            "backend_note": backend_note,
             "restaurant": {
                 "name": restaurant.name,
                 "address": restaurant.address,
@@ -108,6 +141,8 @@ def create_app(tts: object = "auto") -> FastAPI:
         confirmed = session.state == "CONFIRMED"
         return {
             "reply": _spoken_text(reply.text),
+            "reply_en": _spoken_text(reply.text_en),
+            "reply_zh": _spoken_text(reply.text_zh),
             "lang": session.lang,
             "state": session.state,
             "done": reply.done,
@@ -125,10 +160,12 @@ def create_app(tts: object = "auto") -> FastAPI:
         engine = _tts_engine()
         if engine is None:
             raise HTTPException(status_code=503, detail="tts model not installed")
-        if has_cjk(req.text):
-            # zh replies are spoken client-side by the system voice
-            raise HTTPException(status_code=400, detail="tts is English-only")
-        return Response(content=engine.synthesize(req.text), media_type="audio/wav")
+        # mixed text is fine - drop CJK segments (zh is spoken client-side);
+        # only a text with no English left is an error
+        text = _english_only(req.text) if has_cjk(req.text) else req.text
+        if not text:
+            raise HTTPException(status_code=400, detail="no English text to speak")
+        return Response(content=engine.synthesize(text), media_type="audio/wav")
 
     @app.get("/")
     def index() -> FileResponse:

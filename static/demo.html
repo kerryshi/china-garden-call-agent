@@ -48,6 +48,8 @@
            line-height:1.55;padding:6px 10px;white-space:pre-wrap;color:#e9e9ee}
   .caption .who{display:block;font-size:11px;color:#8a8a92;letter-spacing:.6px;
                 text-transform:uppercase;margin-bottom:4px}
+  .caption .alt{display:block;font-size:12.5px;color:#9a9aa2;margin-top:7px}
+  .bub .alt{display:block;font-size:11.5px;color:#b9b9c2;margin-top:4px}
   .voice-badge{font-size:11px;color:#8a8a92}
   .transfer{background:#3a2f14;color:#e8c56d;font-size:12.5px;border-radius:12px;
             padding:6px 12px;margin-bottom:4px}
@@ -167,7 +169,7 @@
         <div class="timer" id="timer"></div>
         <div class="caption" id="caption"></div>
         <div id="transfer-slot"></div>
-        <div class="voice-badge" id="voice-badge"></div>
+        <div class="voice-badge"><span id="voice-badge"></span> · <span id="brain-badge"></span></div>
         <div class="ctlrow">
           <button id="mic-btn" title="Tap, speak — it sends">🎤<span class="ctlbl" data-i18n="micLbl">speak</span></button>
           <button id="mic-lang" class="small" title="Speech recognition language">EN<span class="ctlbl" data-i18n="micLangLbl">mic lang</span></button>
@@ -267,6 +269,7 @@ const I18N = {
     micLbl:"speak", micLangLbl:"mic lang", hfLbl:"hands-free", spkLbl:"voice", endLbl:"end",
     voiceKokoro:"voice: Kokoro (local neural)", voiceSystem:"voice: system",
     voiceOff:"voice: off",
+    brainRules:"brain: offline rules (demo)", brainHaiku:"brain: Claude AI",
     hintOffline:"Offline: the mic needs internet — use macOS dictation (fn fn) or type.",
     hintHandoff:"The call would now ring the restaurant's own phone.",
     transfer:"→ transferring to a person — your phone rings",
@@ -307,6 +310,7 @@ const I18N = {
     micLbl:"说话", micLangLbl:"识别语言", hfLbl:"免提", spkLbl:"语音", endLbl:"挂断",
     voiceKokoro:"语音：Kokoro（本地神经网络）", voiceSystem:"语音：系统",
     voiceOff:"语音：关",
+    brainRules:"大脑：离线规则（演示）", brainHaiku:"大脑：Claude AI",
     hintOffline:"当前离线：麦克风需要网络——请用 Mac 听写（按两下 fn）或直接输入。",
     hintHandoff:"此时电话会转回您店里的电话。",
     transfer:"→ 正在转接真人——您的电话响起",
@@ -360,7 +364,7 @@ document.getElementById("lang-toggle").onclick = () => {
 /* ---------------- state ---------------- */
 let sessionId = null, inCall = false, hasCalled = false, callT0 = 0, timerIv = null;
 let kokoroAvailable = false, lastEngine = "", spkOn = true, handsFree = true;
-let micLang = "en-US", callState = "";
+let micLang = "en-US", callState = "", brain = "rule";
 let lastOrder = [], lastTotals = null, confirmedTicket = null;
 const $ = id => document.getElementById(id);
 
@@ -373,6 +377,7 @@ function updateVoiceBadge(){
     : (kokoroAvailable ? t("voiceKokoro") : t("voiceSystem"));
   $("voice-badge").textContent = label;
   $("voice-badge-idle").textContent = label;
+  $("brain-badge").textContent = brain === "haiku" ? t("brainHaiku") : t("brainRules");
 }
 function updateCallState(){
   $("callstate").textContent = callState ? t(callState) : "";
@@ -405,7 +410,12 @@ async function speak(text, replyLang){
       try {
         const resp = await fetch("/api/tts", {method:"POST",
           headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
-        if (!resp.ok) throw new Error("tts " + resp.status);
+        if (!resp.ok){
+          // only a missing model (503) or transport error disables Kokoro;
+          // a 400 (nothing speakable) is a one-off, never a latch
+          if (resp.status === 503){ kokoroAvailable = false; updateVoiceBadge(); }
+          throw new Error("tts " + resp.status);
+        }
         const url = URL.createObjectURL(await resp.blob());
         lastEngine = "kokoro";
         await new Promise(res => {
@@ -414,7 +424,7 @@ async function speak(text, replyLang){
         });
         URL.revokeObjectURL(url);
       } catch (e) {
-        kokoroAvailable = false; updateVoiceBadge();
+        if (e instanceof TypeError){ kokoroAvailable = false; updateVoiceBadge(); }
         lastEngine = "system"; await sysSpeak(text, "en-US");
       }
     } else {
@@ -486,20 +496,30 @@ $("spk-btn").onclick = e => {
 };
 
 /* ---------------- transcript ---------------- */
-function logBubble(cls, text){
+function logBubble(cls, text, alt){
   const div = document.createElement("div");
   div.className = "bub " + cls; div.textContent = text;
+  if (alt){
+    const a = document.createElement("span");
+    a.className = "alt"; a.textContent = alt;
+    div.appendChild(a);
+  }
   $("tlog").appendChild(div); $("tlog").scrollTop = $("tlog").scrollHeight;
 }
 $("transcript-toggle").onclick = () => $("transcript").classList.add("open");
 $("transcript-close").onclick = () => $("transcript").classList.remove("open");
 
 /* ---------------- caption ---------------- */
-function caption(who, text){
+function caption(who, text, alt){
   $("caption").innerHTML = "";
   const w = document.createElement("span"); w.className = "who"; w.textContent = t(who);
   $("caption").appendChild(w);
   $("caption").appendChild(document.createTextNode(text));
+  if (alt){
+    const a = document.createElement("span");
+    a.className = "alt"; a.textContent = alt;
+    $("caption").appendChild(a);
+  }
 }
 
 /* ---------------- call lifecycle ---------------- */
@@ -522,6 +542,8 @@ async function startCall(){
   await ring(2200);
   const data = await sessionReq;
   sessionId = data.session_id; inCall = true;
+  brain = data.backend; updateVoiceBadge();
+  if (data.backend_note) $("hint").textContent = data.backend_note;
   $("r-name").textContent = data.restaurant.name;
   $("r-num").textContent = data.restaurant.phone;
 
@@ -531,8 +553,8 @@ async function startCall(){
     $("timer").textContent = fmtTime(Math.round((Date.now() - callT0) / 1000));
   }, 500);
 
-  caption("agent", data.greeting);
-  logBubble("agent", data.greeting);
+  caption("agent", data.greeting, data.greeting_zh);
+  logBubble("agent", data.greeting, data.greeting_zh);
   await speak(data.greeting, "en");
   $("say").focus();
 }
@@ -577,8 +599,9 @@ async function send(){
     $("hint").textContent = t("hintHandoff");
   }
   if (turn.ticket){ hit("p-readback"); hit("p-cards"); showSms(turn.ticket); }
-  caption("agent", turn.reply);
-  logBubble("agent", turn.reply);
+  const altReply = turn.lang === "zh" ? turn.reply_en : turn.reply_zh;
+  caption("agent", turn.reply, altReply);
+  logBubble("agent", turn.reply, altReply);
   const wasDone = turn.done;
   if (wasDone) inCall = false;           // no auto-mic after the last line
   await speak(turn.reply, turn.lang);

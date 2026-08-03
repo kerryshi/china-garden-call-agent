@@ -109,9 +109,42 @@ def test_tts_unavailable_is_503_and_badged():
     assert app_client.post("/api/tts", json={"text": "hi"}).status_code == 503
 
 
-def test_tts_rejects_chinese_text():
+def test_tts_rejects_pure_chinese_text():
     app_client = TestClient(create_app(tts=FakeEngine()))
     assert app_client.post("/api/tts", json={"text": "你好"}).status_code == 400
+
+
+def test_tts_strips_cjk_from_mixed_text():
+    engine = FakeEngine()
+    seen = []
+    engine.synthesize = lambda text, **kw: seen.append(text) or b"RIFFx"
+    app_client = TestClient(create_app(tts=engine))
+    resp = app_client.post("/api/tts", json={"text": "Thanks for calling! 您也可以说中文。"})
+    assert resp.status_code == 200
+    assert seen == ["Thanks for calling!"]
+
+
+def test_session_and_chat_carry_both_languages(client):
+    data = start_session(client)
+    assert "自动助手" in data["greeting_zh"]
+    assert data["backend"] == "rule"
+    sid = data["session_id"]
+    turn = say(client, sid, "two egg rolls please")
+    assert "Egg Roll" in turn["reply_en"]
+    assert "春卷" in turn["reply_zh"]
+    zh_turn = say(client, sid, "就这样")
+    assert "read that back" in zh_turn["reply_en"]
+    assert "复述" in zh_turn["reply_zh"]
+
+
+def test_haiku_backend_falls_back_visibly_without_credentials():
+    app_client = TestClient(create_app(backend="haiku"))
+    data = app_client.post("/api/session").json()
+    # on a box without the [llm] extra/credentials this must degrade LOUDLY
+    if data["backend"] == "rule":
+        assert data["backend_note"]  # never a silent fallback
+    else:
+        assert data["backend"] == "haiku"
 
 
 def test_index_serves_demo_page(client):
