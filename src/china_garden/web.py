@@ -15,14 +15,15 @@ from collections import OrderedDict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from .backends import RuleBackend
+from .backends import RuleBackend, has_cjk
 from .dialog import DialogSession
 from .faq import Restaurant
 from .menu import Menu
 from .ticket import WIDTH, format_ticket
+from .tts import KokoroEngine
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 MAX_SESSIONS = 200
@@ -32,6 +33,10 @@ _TICKET_RULE = "=" * WIDTH
 class ChatRequest(BaseModel):
     session_id: str
     utterance: str
+
+
+class TTSRequest(BaseModel):
+    text: str
 
 
 def _order_payload(session: DialogSession) -> dict:
@@ -60,11 +65,21 @@ def _spoken_text(text: str) -> str:
     return text.split(_TICKET_RULE)[0].rstrip()
 
 
-def create_app() -> FastAPI:
+def create_app(tts: object = "auto") -> FastAPI:
+    """tts: "auto" loads Kokoro lazily if installed; None disables (503);
+    anything else is used as the engine (tests inject a fake)."""
     menu = Menu.load()
     restaurant = Restaurant.load()
     sessions: OrderedDict[str, DialogSession] = OrderedDict()
+    tts_state = {"engine": None if tts in ("auto", None) else tts,
+                 "tried": tts != "auto"}
     app = FastAPI(title="China Garden call agent demo")
+
+    def _tts_engine():
+        if not tts_state["tried"]:
+            tts_state["tried"] = True
+            tts_state["engine"] = KokoroEngine.try_load()
+        return tts_state["engine"]
 
     @app.post("/api/session")
     def create_session() -> dict:
@@ -93,12 +108,27 @@ def create_app() -> FastAPI:
         confirmed = session.state == "CONFIRMED"
         return {
             "reply": _spoken_text(reply.text),
+            "lang": session.lang,
             "state": session.state,
             "done": reply.done,
             "handoff": session.state == "HANDOFF",
             "ticket": format_ticket(session.order) if confirmed else None,
             **_order_payload(session),
         }
+
+    @app.get("/api/tts/status")
+    def tts_status() -> dict:
+        return {"available": _tts_engine() is not None, "engine": "kokoro"}
+
+    @app.post("/api/tts")
+    def tts_synthesize(req: TTSRequest) -> Response:
+        engine = _tts_engine()
+        if engine is None:
+            raise HTTPException(status_code=503, detail="tts model not installed")
+        if has_cjk(req.text):
+            # zh replies are spoken client-side by the system voice
+            raise HTTPException(status_code=400, detail="tts is English-only")
+        return Response(content=engine.synthesize(req.text), media_type="audio/wav")
 
     @app.get("/")
     def index() -> FileResponse:

@@ -19,5 +19,12 @@
   "delivery_policy": "We don't deliver ourselves - you can order delivery through DoorDash or Grubhub. Pickup orders are welcome on this line.",
   "allergen_policy": "For any allergy or ingredient-safety question I need to hand you to a person - your safety matters too much for me to guess.",
   "catering": "We don't offer catering or large-party orders - but I'm glad to take a regular pickup order for you, or say 'person' if you'd like to talk to someone about it.",
-  "ai_disclosure": "Thanks for calling China Garden! I'm an automated assistant - I can answer questions and take your pickup order, or say 'person' anytime to talk to a human."
+  "ai_disclosure": "Thanks for calling China Garden! I'm an automated assistant - I can answer questions and take your pickup order, or say 'person' anytime to talk to a human. 您也可以直接说中文。",
+  "zh": {
+    "_comment": "Simplified Chinese reply variants - Kerry/family to review wording before live use.",
+    "payment_policy": "取餐时付款——柜台收现金和银行卡。为了您的安全，本自动线路绝不索取银行卡号。",
+    "delivery_policy": "我们不自己送外卖——您可以通过 DoorDash 或 Grubhub 下配送单。欢迎在本线路下自取订单。",
+    "allergen_policy": "关于过敏或食材安全的问题，我需要转给真人来回答——您的安全太重要，我不能猜。",
+    "catering": "我们不承接酒席或大型宴会订单——不过我很乐意帮您下一份普通自取订单，或者说'人工'转真人咨询。"
+  }
 }

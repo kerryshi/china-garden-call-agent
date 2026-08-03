@@ -64,6 +64,61 @@ _PRICE_QUESTION_PATTERNS = (
     r"\b(?:price|cost)\b\s*(?:of|for)\s+(.+)",
 )
 
+# ---------------------------------------------------------------- Chinese (zh)
+# Same safety-first ordering as English. False-positive handoffs are
+# acceptable by policy; a missed allergen question is not. Bare 素 would
+# collide with 素春卷, so only unambiguous forms appear.
+_CJK_RE = re.compile(r"[一-鿿]")
+
+_ZH_ALLERGEN = (r"过敏|忌口|花生|坚果|麸质|乳糖|海鲜|味精|素食|吃素|纯素|成分"
+                r"|什么材料|有没有放|能不能吃")
+_ZH_HUMAN = r"人工|真人|经理|客服|接线|找个人|找人说"
+_ZH_AFFIRM = r"对|是的|没错|正确|好的|可以|行|嗯|确认"
+_ZH_NEGATE = r"不对|不是|错了|有误"
+_ZH_REMOVAL = r"不要|去掉|取消|删掉|别要|不用"
+_ZH_DONE = r"就这样|就这些|没有了|不要别的|够了|可以下单|下单吧|好了"
+_ZH_GOODBYE = r"再见|拜拜"
+_ZH_PRICE = r"多少钱|什么价|价格|怎么卖"
+_ZH_FAQ = (
+    ("catering", r"酒席|宴席|大批|大单|聚会|派对|包办"),
+    ("hours", r"几点|营业时间|开门|关门|营业到"),
+    ("delivery", r"外卖|送餐|配送|送不送|送吗"),
+    ("payment", r"付款|支付|刷卡|信用卡|现金|微信|支付宝"),
+    ("address", r"地址|在哪|位置|怎么走"),
+    ("phone", r"电话号码|号码是"),
+)
+_ZH_NOTES = r"特辣|加辣|多辣|微辣|不辣|少辣|少油|少盐|多饭|免葱"
+_ZH_NUM = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5,
+           "六": 6, "七": 7, "八": 8, "九": 9}
+_ZH_MEASURES = "个份盒碗只例杯打"
+_ZH_SIZES = (("大", "quart"), ("小", "pint"))
+_ZH_CHUNK_SPLIT = r"，|,|、|；|。|还有|再来|再要|然后|跟|和"
+_ZH_QTY = re.compile(rf"([0-9]+|[一两二三四五六七八九十]+)\s*[{_ZH_MEASURES}]?")
+_ZH_STRIP = re.compile(
+    rf"[0-9]+|[一两二三四五六七八九十]+[{_ZH_MEASURES}]|[{_ZH_MEASURES}]"
+    r"|我要|我想要|想要|要|来|点|给我|帮我|加|请|谢谢|大的|小的|大|小|的|了|吧|呢|吗"
+)
+
+
+def has_cjk(text: str) -> bool:
+    return bool(_CJK_RE.search(text))
+
+
+def _zh_num(token: str) -> int | None:
+    """Chinese numerals up to 99 (一/两/二…十, 十X, X十, X十Y) or digits."""
+    if token.isdigit():
+        return int(token)
+    if not token:
+        return None
+    if "十" in token:
+        tens_s, _, units_s = token.partition("十")
+        tens = _ZH_NUM.get(tens_s, 1) if tens_s else 1
+        units = _ZH_NUM.get(units_s, 0) if units_s else 0
+        return tens * 10 + units
+    if len(token) == 1:
+        return _ZH_NUM.get(token)
+    return None
+
 
 @dataclass
 class Intent:
@@ -108,6 +163,9 @@ class RuleBackend:
         text = utterance.lower().strip()
         if not text:
             return [Intent("unknown")]
+
+        if has_cjk(text):
+            return self._parse_zh(text, context)
 
         if re.search(_ALLERGEN, text):
             return [Intent("allergen")]
@@ -155,6 +213,117 @@ class RuleBackend:
         if intents:
             return intents
         return [Intent("unknown")]
+
+    # ------------------------------------------------------------------ zh
+    def _parse_zh(self, text: str, context: Context) -> list[Intent]:
+        """Chinese path - mirrors the English safety-first ordering."""
+        if re.search(_ZH_ALLERGEN, text):
+            return [Intent("allergen")]
+        if re.search(_ZH_HUMAN, text):
+            return [Intent("request_human")]
+        if re.search(_CARD_DIGITS, text):
+            return [Intent("faq", topic="payment"), *self._parse_items_zh(text)]
+
+        if context.state == "READ_BACK":
+            return self._parse_read_back_zh(text)
+
+        if re.search(_ZH_GOODBYE, text):
+            return [Intent("goodbye")]
+
+        for topic, pattern in _ZH_FAQ:
+            if re.search(pattern, text):
+                return [Intent("faq", topic=topic), *self._parse_items_zh(text)]
+
+        if re.search(_ZH_PRICE, text):
+            raw = re.sub(_ZH_PRICE, " ", text)
+            cleaned = _ZH_STRIP.sub("", raw).strip(" ?？。！!")
+            item = self.menu.find(cleaned) if cleaned else None
+            # unresolved stays a price question - never falls through to an add
+            return [Intent("item_price", item_query=item.name if item else cleaned)]
+
+        done = re.search(_ZH_DONE, text)
+        if done:
+            remainder = text.replace(done.group(0), " ")
+            return [*self._parse_items_zh(remainder), Intent("done_ordering")]
+
+        if re.search(_ZH_REMOVAL, text):
+            removal = self._parse_removal_zh(text)
+            if removal:
+                return removal
+            # 不要X where X is not a menu item is a preference, not a removal -
+            # fall through so it can attach as a note
+
+        intents = self._parse_items_zh(text)
+        if intents:
+            return intents
+        return [Intent("unknown")]
+
+    def _parse_read_back_zh(self, text: str) -> list[Intent]:
+        """Corrections outrank confirmation, exactly like the English path."""
+        if re.search(_ZH_REMOVAL, text):
+            removal = self._parse_removal_zh(text)
+            if removal:
+                return removal
+        items = self._parse_items_zh(text)
+        if re.search(_ZH_NEGATE, text):
+            return [Intent("deny"), *items]
+        if items:
+            return items
+        if re.search(_ZH_AFFIRM, text):
+            return [Intent("confirm")]
+        return [Intent("unknown")]
+
+    def _parse_removal_zh(self, text: str) -> list[Intent] | None:
+        stripped = re.sub(_ZH_REMOVAL, " ", text)
+        size = ""
+        for marker, canonical in _ZH_SIZES:
+            if marker in stripped:
+                size = canonical
+                break
+        cleaned = _ZH_STRIP.sub("", stripped).strip()
+        item = self.menu.find(cleaned) if cleaned else None
+        if not item:
+            return None  # caller decides: note fall-through, never an add
+        return [Intent("remove_item", item_query=item.name, size=size)]
+
+    def _parse_items_zh(self, text: str) -> list[Intent]:
+        intents: list[Intent] = []
+        for chunk in re.split(_ZH_CHUNK_SPLIT, text):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            qty = 1
+            m = _ZH_QTY.search(chunk)
+            if m:
+                parsed = _zh_num(m.group(1))
+                if parsed is not None:
+                    qty = parsed
+            qty = max(1, qty)
+            size = ""
+            for marker, canonical in _ZH_SIZES:
+                if marker in chunk:
+                    size = canonical
+                    break
+            notes = ""
+            note_match = re.search(_ZH_NOTES, chunk)
+            if note_match:
+                notes = note_match.group(0)
+            remainder = re.sub(_ZH_NOTES, "", chunk)
+            cleaned = _ZH_STRIP.sub("", remainder).strip()
+            item = self.menu.find(cleaned) if cleaned else None
+            if item:
+                intents.append(Intent("add_item", item_query=item.name, qty=qty,
+                                      size=size, notes=notes))
+                continue
+            # a chunk that is only a preference (加辣 / 不要葱) belongs to the
+            # item before the separator, not to a new intent
+            if intents:
+                extra = notes or (chunk if re.fullmatch(
+                    r"(不要|少|多|免)[一-鿿]{1,3}", chunk) else "")
+                if extra:
+                    prev = intents[-1]
+                    prev.notes = f"{prev.notes} {extra}".strip()
+        return intents
 
     def _parse_read_back(self, text: str) -> list[Intent]:
         """Corrections outrank confirmation; confirm only without contradiction."""

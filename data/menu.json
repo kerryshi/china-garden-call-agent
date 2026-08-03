@@ -1,28 +1,32 @@
 {
-  "_comment": "STARTER MENU - placeholder items and prices (cents). Replace with the real China Garden menu; items/prices are the family's call.",
+  "_comment": "STARTER MENU - placeholder items and prices (cents). Replace with the real China Garden menu; items/prices are the family's call. name_zh + Chinese aliases: Kerry to review wording.",
   "items": [
     {
       "id": "egg_roll",
       "name": "Egg Roll",
-      "aliases": ["egg rolls", "eggroll"],
+      "name_zh": "春卷",
+      "aliases": ["egg rolls", "eggroll", "春卷", "炸春卷"],
       "sizes": [{ "name": "", "price_cents": 175 }]
     },
     {
       "id": "spring_roll",
       "name": "Spring Roll",
-      "aliases": ["spring rolls"],
+      "name_zh": "素春卷",
+      "aliases": ["spring rolls", "素春卷"],
       "sizes": [{ "name": "", "price_cents": 175 }]
     },
     {
       "id": "crab_rangoon",
       "name": "Crab Rangoon (6)",
-      "aliases": ["crab rangoon", "crab rangoons", "cheese wonton", "cheese wontons"],
+      "name_zh": "炸蟹角",
+      "aliases": ["crab rangoon", "crab rangoons", "cheese wonton", "cheese wontons", "炸蟹角", "蟹角", "芝士云吞"],
       "sizes": [{ "name": "", "price_cents": 595 }]
     },
     {
       "id": "wonton_soup",
       "name": "Wonton Soup",
-      "aliases": ["wonton", "won ton soup"],
+      "name_zh": "云吞汤",
+      "aliases": ["wonton", "won ton soup", "云吞汤", "馄饨汤", "云吞"],
       "sizes": [
         { "name": "pint", "price_cents": 350 },
         { "name": "quart", "price_cents": 595 }
@@ -31,7 +35,8 @@
     {
       "id": "hot_sour_soup",
       "name": "Hot and Sour Soup",
-      "aliases": ["hot sour soup", "hot and sour"],
+      "name_zh": "酸辣汤",
+      "aliases": ["hot sour soup", "hot and sour", "酸辣汤"],
       "sizes": [
         { "name": "pint", "price_cents": 350 },
         { "name": "quart", "price_cents": 595 }
@@ -40,7 +45,8 @@
     {
       "id": "chicken_fried_rice",
       "name": "Chicken Fried Rice",
-      "aliases": ["fried rice with chicken", "chicken rice"],
+      "name_zh": "鸡肉炒饭",
+      "aliases": ["fried rice with chicken", "chicken rice", "鸡肉炒饭", "鸡炒饭"],
       "sizes": [
         { "name": "pint", "price_cents": 650 },
         { "name": "quart", "price_cents": 995 }
@@ -49,7 +55,8 @@
     {
       "id": "chicken_lo_mein",
       "name": "Chicken Lo Mein",
-      "aliases": ["lo mein with chicken", "chicken noodles", "lo mein"],
+      "name_zh": "鸡肉捞面",
+      "aliases": ["lo mein with chicken", "chicken noodles", "lo mein", "鸡肉捞面", "鸡捞面", "捞面"],
       "sizes": [
         { "name": "pint", "price_cents": 675 },
         { "name": "quart", "price_cents": 1050 }
@@ -58,35 +65,40 @@
     {
       "id": "general_tso",
       "name": "General Tso's Chicken",
-      "aliases": ["general tso", "general tsos chicken", "general chicken", "general tso chicken"],
+      "name_zh": "左宗棠鸡",
+      "aliases": ["general tso", "general tsos chicken", "general chicken", "general tso chicken", "左宗棠鸡", "左宗鸡", "左公鸡"],
       "sizes": [{ "name": "", "price_cents": 1250 }],
       "note": "served with white rice"
     },
     {
       "id": "sesame_chicken",
       "name": "Sesame Chicken",
-      "aliases": ["sesame"],
+      "name_zh": "芝麻鸡",
+      "aliases": ["sesame", "芝麻鸡"],
       "sizes": [{ "name": "", "price_cents": 1250 }],
       "note": "served with white rice"
     },
     {
       "id": "beef_broccoli",
       "name": "Beef with Broccoli",
-      "aliases": ["beef broccoli", "broccoli beef"],
+      "name_zh": "芥兰牛",
+      "aliases": ["beef broccoli", "broccoli beef", "芥兰牛", "西兰花牛肉", "芥蓝牛"],
       "sizes": [{ "name": "", "price_cents": 1295 }],
       "note": "served with white rice"
     },
     {
       "id": "sweet_sour_chicken",
       "name": "Sweet and Sour Chicken",
-      "aliases": ["sweet sour chicken", "sweet and sour"],
+      "name_zh": "甜酸鸡",
+      "aliases": ["sweet sour chicken", "sweet and sour", "甜酸鸡", "糖醋鸡"],
       "sizes": [{ "name": "", "price_cents": 1195 }],
       "note": "served with white rice"
     },
     {
       "id": "white_rice",
       "name": "White Rice",
-      "aliases": ["rice", "steamed rice"],
+      "name_zh": "白饭",
+      "aliases": ["rice", "steamed rice", "白饭", "米饭", "白米饭"],
       "sizes": [
         { "name": "pint", "price_cents": 250 },
         { "name": "quart", "price_cents": 425 }

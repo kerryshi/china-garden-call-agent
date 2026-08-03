@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .menu import MenuItem, Size
+from .menu import MenuItem, Size, size_zh
 from .money import fmt_cents
 
 
@@ -19,7 +19,11 @@ class OrderLine:
     def line_total_cents(self) -> int:
         return self.size.price_cents * self.qty
 
-    def describe(self) -> str:
+    def describe(self, lang: str = "en") -> str:
+        if lang == "zh":
+            size_part = f"{size_zh(self.size.name)}" if self.size.name else ""
+            note_part = f"（{self.notes}）" if self.notes else ""
+            return f"{self.qty}份{size_part}{self.item.display_name('zh')}{note_part}"
         size_part = f"{self.size.name} " if self.size.name else ""
         note_part = f" ({self.notes})" if self.notes else ""
         return f"{self.qty} {size_part}{self.item.name}{note_part}"
@@ -74,8 +78,19 @@ class Order:
             for line in self.lines
         ]
 
-    def read_back(self) -> str:
+    def read_back(self, lang: str = "en") -> str:
         """The confirmation script: every line, then the total. Never skipped."""
+        if lang == "zh":
+            if not self.lines:
+                return "您的订单是空的。"
+            parts = ["我给您复述一下："]
+            for line in self.lines:
+                parts.append(f"  {line.describe('zh')} - {fmt_cents(line.line_total_cents)}")
+            parts.append(
+                f"合计{fmt_cents(self.subtotal_cents)}，"
+                f"含税一共{fmt_cents(self.total_cents)}。"
+            )
+            return "\n".join(parts)
         if not self.lines:
             return "Your order is empty."
         parts = ["Let me read that back:"]

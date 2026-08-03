@@ -17,7 +17,12 @@ _QUALIFIERS = {"pork", "beef", "shrimp", "chicken", "vegetable", "veggie",
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
+    # keep CJK so Chinese names/aliases survive normalization
+    return re.sub(r"[^a-z0-9一-鿿 ]", "", text.lower()).strip()
+
+
+def _has_cjk(text: str) -> bool:
+    return bool(re.search(r"[一-鿿]", text))
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,7 @@ class MenuItem:
     aliases: tuple[str, ...]
     sizes: tuple[Size, ...]
     note: str = ""
+    name_zh: str = ""
 
     @property
     def default_size(self) -> Size:
@@ -44,9 +50,30 @@ class MenuItem:
                 return s
         return None
 
+    def display_name(self, lang: str = "en") -> str:
+        return self.name_zh if lang == "zh" and self.name_zh else self.name
 
-def price_text(item: MenuItem) -> str:
+    def match_candidates(self) -> tuple[str, ...]:
+        cands = (self.name, self.name_zh, *self.aliases)
+        return tuple(c for c in cands if c)
+
+
+_SIZE_ZH = {"pint": "小份", "quart": "大份"}
+
+
+def size_zh(name: str) -> str:
+    return _SIZE_ZH.get(name, name)
+
+
+def price_text(item: MenuItem, lang: str = "en") -> str:
     """Spoken price line - multi-size items state every size, never one guess."""
+    if lang == "zh":
+        if len(item.sizes) == 1 and not item.sizes[0].name:
+            return f"{item.display_name('zh')}是{fmt_cents(item.sizes[0].price_cents)}。"
+        sizes = "，".join(
+            f"{size_zh(s.name)}{fmt_cents(s.price_cents)}" for s in item.sizes
+        )
+        return f"{item.display_name('zh')}是：{sizes}。"
     if len(item.sizes) == 1 and not item.sizes[0].name:
         return f"{item.name} is {fmt_cents(item.sizes[0].price_cents)}."
     sizes = ", ".join(
@@ -69,6 +96,7 @@ class Menu:
                 aliases=tuple(it.get("aliases", [])),
                 sizes=tuple(Size(s["name"], s["price_cents"]) for s in it["sizes"]),
                 note=it.get("note", ""),
+                name_zh=it.get("name_zh", ""),
             )
             for it in raw["items"]
         ]
@@ -79,7 +107,7 @@ class Menu:
         if not q:
             return None
         for item in self.items:
-            if q == _norm(item.name) or any(q == _norm(a) for a in item.aliases):
+            if any(q == _norm(c) for c in item.match_candidates()):
                 return item
         return None
 
@@ -102,7 +130,7 @@ class Menu:
         q_qual = q_tokens & _QUALIFIERS
         best: tuple[int, MenuItem] | None = None
         for item in self.items:
-            for cand in (item.name, *item.aliases):
+            for cand in item.match_candidates():
                 c_tokens = set(_norm(cand).split())
                 if not (q_tokens <= c_tokens or c_tokens <= q_tokens):
                     continue
@@ -115,9 +143,11 @@ class Menu:
                     best = (len(shared), item)
         if best:
             return best[1]
-        if len(q) >= 4:
+        # CJK names are 2-4 chars, so the substring floor drops to 2 for them
+        min_len = 2 if _has_cjk(q) else 4
+        if len(q) >= min_len:
             hits = {item.id: item for item in self.items
-                    if any(q in _norm(cand) for cand in (item.name, *item.aliases))}
+                    if any(q in _norm(cand) for cand in item.match_candidates())}
             if len(hits) == 1:
                 # a substring shared by several dishes ("chicken") is
                 # ambiguous - ask, don't guess

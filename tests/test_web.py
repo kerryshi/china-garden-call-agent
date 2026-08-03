@@ -80,6 +80,40 @@ def test_unknown_session_is_404(client):
     assert resp.status_code == 404
 
 
+def test_chat_reports_reply_language(client):
+    sid = start_session(client)["session_id"]
+    zh = say(client, sid, "来两份春卷")
+    assert zh["lang"] == "zh"
+    en = say(client, sid, "and one wonton soup")
+    assert en["lang"] == "en"
+
+
+class FakeEngine:
+    def synthesize(self, text: str, **kwargs) -> bytes:
+        return b"RIFFfake-wav-bytes" + text.encode()[:8]
+
+
+def test_tts_endpoint_with_engine():
+    app_client = TestClient(create_app(tts=FakeEngine()))
+    status = app_client.get("/api/tts/status").json()
+    assert status["available"] is True
+    resp = app_client.post("/api/tts", json={"text": "Hello there"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/wav"
+    assert resp.content.startswith(b"RIFF")
+
+
+def test_tts_unavailable_is_503_and_badged():
+    app_client = TestClient(create_app(tts=None))
+    assert app_client.get("/api/tts/status").json()["available"] is False
+    assert app_client.post("/api/tts", json={"text": "hi"}).status_code == 503
+
+
+def test_tts_rejects_chinese_text():
+    app_client = TestClient(create_app(tts=FakeEngine()))
+    assert app_client.post("/api/tts", json={"text": "你好"}).status_code == 400
+
+
 def test_index_serves_demo_page(client):
     resp = client.get("/")
     assert resp.status_code == 200

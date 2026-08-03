@@ -24,19 +24,23 @@ python -m venv .venv
 
 ## Demo webapp (in-person sales surface)
 
-Split-view demo for pitching: caller phone UI (left) + the restaurant's view (right — live
-kitchen ticket, simulated SMS relay, protections that light up mid-call, pricing/ROI).
-Owner-side copy has an English/中文 toggle. Fully offline-capable: no external assets, no
-cloud calls; agent replies are spoken via the OS voices (browser `speechSynthesis`).
+Call-style demo for pitching: the left panel is a phone call (ring → AI answers → hands-free
+back-and-forth, timer, live caption, transcript drawer), the right panel is the restaurant's
+view — live bilingual kitchen ticket, simulated SMS relay, protections that light up mid-call,
+pricing/ROI. All page copy has an English/中文 toggle, **and the agent itself understands
+Chinese**: a turn in 中文 is parsed and answered in 中文 (per-turn; English works as before).
 
 ```
-.venv\Scripts\pip install -e .[web]
+.venv\Scripts\pip install -e .[web,tts]
+bash scripts/fetch-tts.sh          # one-time ~340MB: Kokoro-82M voice (Apache-2.0)
 .venv\Scripts\python -m uvicorn china_garden.web:app --port 8000
 # open http://localhost:8000
 ```
 
-Voice input: the 🎤 tap-to-talk button works when online in Chrome (its speech recognition
-is cloud-backed). Offline (or on Safari), use macOS dictation — press fn twice — or type.
+Voice: English replies use the local Kokoro neural voice (offline, `/api/tts`); without the
+model files the page falls back to the OS voice and says so in the badge. Chinese replies use
+the OS Chinese voice. Voice input: 🎤 works when online in Chrome (cloud STT; toggle EN/中
+for recognition language). Offline, use macOS dictation — press fn twice — or type.
 To show the page on a phone without deploying: `cloudflared tunnel --url http://localhost:8000`.
 
 ## Layout

@@ -7,8 +7,8 @@
 <style>
   :root{
     --bg:#f6f4ef; --ink:#1d1d1f; --muted:#6b6b70; --card:#ffffff; --line:#e5e2da;
-    --red:#b3352c; --gold:#c99b3f; --green:#1f7a4d; --phone:#101014; --bubble-a:#2a2a30;
-    --bubble-c:#0a84ff; --hit:#eaf7ef; --hit-line:#1f7a4d;
+    --red:#b3352c; --gold:#c99b3f; --green:#1f7a4d; --phone:#101014;
+    --bubble-a:#2a2a30; --bubble-c:#0a84ff; --hit:#eaf7ef; --hit-line:#1f7a4d;
   }
   *{box-sizing:border-box} html,body{margin:0;padding:0}
   body{background:var(--bg);color:var(--ink);
@@ -19,41 +19,84 @@
   .brand small{font-weight:400;color:var(--muted);margin-left:10px}
   #lang-toggle{border:1px solid var(--line);background:var(--bg);border-radius:20px;
                padding:6px 14px;cursor:pointer;font-size:14px}
-  main.split{display:grid;grid-template-columns:390px 1fr;gap:26px;
-             padding:26px;max-width:1250px;margin:0 auto}
-  @media (max-width:900px){main.split{grid-template-columns:1fr}}
+  main.split{display:grid;grid-template-columns:400px 1fr;gap:26px;
+             padding:26px;max-width:1270px;margin:0 auto}
+  @media (max-width:920px){main.split{grid-template-columns:1fr}}
 
-  /* ---- caller phone ---- */
+  /* ================= caller phone ================= */
   #caller-panel{position:sticky;top:20px;align-self:start}
-  .phone{background:var(--phone);border-radius:34px;padding:14px 12px 18px;
+  .phone{background:var(--phone);border-radius:36px;padding:14px 12px 16px;
          box-shadow:0 18px 40px rgba(0,0,0,.28);color:#f2f2f4;display:flex;
-         flex-direction:column;height:660px}
-  .phone-head{text-align:center;padding:10px 6px 12px;border-bottom:1px solid #26262c}
+         flex-direction:column;height:700px;position:relative;overflow:hidden}
+  .phone-head{text-align:center;padding:8px 6px 10px}
   .phone-head .rname{font-weight:700;font-size:17px}
   .phone-head .rnum{color:#9a9aa2;font-size:13px;margin-top:2px}
-  .phone-head .live{display:inline-block;margin-top:6px;font-size:12px;color:#7ee2a8}
-  .phone-head .live::before{content:"●";margin-right:5px}
-  .chat{flex:1;overflow-y:auto;padding:14px 8px;display:flex;flex-direction:column;gap:9px}
-  .bub{max-width:82%;padding:9px 13px;border-radius:18px;white-space:pre-wrap;font-size:14px}
-  .bub.agent{background:var(--bubble-a);border-bottom-left-radius:6px;align-self:flex-start}
-  .bub.caller{background:var(--bubble-c);border-bottom-right-radius:6px;align-self:flex-end}
-  .transfer{align-self:center;background:#3a2f14;color:#e8c56d;font-size:12.5px;
-            border-radius:12px;padding:6px 12px}
-  .controls{padding-top:10px}
-  #start-call{width:100%;background:var(--green);color:#fff;border:0;border-radius:24px;
-              padding:13px;font-size:16px;font-weight:600;cursor:pointer}
-  .inrow{display:none;gap:7px}
-  .inrow input{flex:1;border-radius:20px;border:0;padding:11px 14px;font-size:14px;
-               background:#1e1e24;color:#f2f2f4;outline:none}
-  .inrow button{border:0;border-radius:50%;width:42px;height:42px;font-size:17px;
-                cursor:pointer;background:#2a2a30;color:#f2f2f4}
-  .inrow #send-btn{background:var(--bubble-c)}
-  .inrow #mic-btn.rec{background:var(--red)}
-  .hint{color:#9a9aa2;font-size:12px;text-align:center;margin-top:8px;min-height:16px}
 
-  /* ---- owner side ---- */
+  .callscreen{flex:1;display:flex;flex-direction:column;align-items:center;
+              justify-content:flex-start;padding:16px 10px 0;gap:10px}
+  .avatar{width:104px;height:104px;border-radius:50%;background:#22222a;
+          display:flex;align-items:center;justify-content:center;font-size:46px;
+          margin-top:12px;position:relative}
+  .avatar .ringwave{position:absolute;inset:-8px;border-radius:50%;
+          border:2px solid var(--green);opacity:0;pointer-events:none}
+  .phone.speaking .avatar .ringwave{animation:wave 1.2s ease-out infinite}
+  @keyframes wave{0%{transform:scale(.92);opacity:.85}100%{transform:scale(1.28);opacity:0}}
+  .phone.listening .avatar{outline:3px solid var(--bubble-c);outline-offset:4px}
+  .callstate{font-size:14px;color:#9a9aa2;min-height:20px}
+  .timer{font-size:13px;color:#7ee2a8;min-height:18px;font-variant-numeric:tabular-nums}
+  .caption{flex:1;width:100%;overflow-y:auto;text-align:center;font-size:15.5px;
+           line-height:1.55;padding:6px 10px;white-space:pre-wrap;color:#e9e9ee}
+  .caption .who{display:block;font-size:11px;color:#8a8a92;letter-spacing:.6px;
+                text-transform:uppercase;margin-bottom:4px}
+  .voice-badge{font-size:11px;color:#8a8a92}
+  .transfer{background:#3a2f14;color:#e8c56d;font-size:12.5px;border-radius:12px;
+            padding:6px 12px;margin-bottom:4px}
+
+  .ctlrow{display:flex;justify-content:center;gap:12px;padding:8px 0 4px}
+  .ctlrow button{border:0;border-radius:50%;width:52px;height:52px;font-size:20px;
+                 cursor:pointer;background:#2a2a30;color:#f2f2f4;position:relative}
+  .ctlrow button.small{width:44px;height:44px;font-size:13px;font-weight:700}
+  .ctlrow button.on{background:#3d5a3f}
+  .ctlrow #mic-btn.rec{background:var(--bubble-c);animation:pulse 1.1s infinite}
+  @keyframes pulse{50%{filter:brightness(1.35)}}
+  .ctlrow #end-btn{background:var(--red);font-size:22px}
+  .ctlbl{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);
+         font-size:9.5px;color:#8a8a92;white-space:nowrap}
+
+  .inrow{display:flex;gap:7px;padding:14px 4px 2px}
+  .inrow input{flex:1;border-radius:18px;border:0;padding:9px 13px;font-size:13.5px;
+               background:#1e1e24;color:#f2f2f4;outline:none}
+  .inrow button{border:0;border-radius:50%;width:38px;height:38px;font-size:15px;
+                cursor:pointer;background:var(--bubble-c);color:#fff}
+  .hint{color:#9a9aa2;font-size:11.5px;text-align:center;min-height:15px;padding-top:5px}
+
+  #idle-screen{flex:1;display:flex;flex-direction:column;align-items:center;
+               justify-content:center;gap:18px;padding:0 18px}
+  #start-call{width:100%;background:var(--green);color:#fff;border:0;border-radius:26px;
+              padding:15px;font-size:17px;font-weight:600;cursor:pointer}
+  .idle-note{color:#8a8a92;font-size:12.5px;text-align:center}
+
+  #transcript{position:absolute;left:0;right:0;bottom:0;top:38%;
+              background:#17171c;border-radius:22px 22px 34px 34px;
+              transform:translateY(103%);transition:transform .3s ease;
+              display:flex;flex-direction:column;padding:12px}
+  #transcript.open{transform:translateY(0)}
+  #transcript .thead{display:flex;justify-content:space-between;align-items:center;
+                     padding:0 4px 8px;color:#9a9aa2;font-size:12.5px}
+  #transcript .thead button{background:none;border:0;color:#9a9aa2;cursor:pointer;
+                            font-size:15px}
+  .tlog{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
+  .bub{max-width:84%;padding:8px 12px;border-radius:16px;white-space:pre-wrap;
+       font-size:13.5px}
+  .bub.agent{background:var(--bubble-a);border-bottom-left-radius:5px;align-self:flex-start}
+  .bub.caller{background:var(--bubble-c);border-bottom-right-radius:5px;align-self:flex-end}
+  #transcript-toggle{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+                     background:none;border:0;color:#6f6f78;font-size:11px;cursor:pointer}
+
+  /* ================= owner side ================= */
   #owner-panel{display:flex;flex-direction:column;gap:20px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:20px 22px}
   .card h2{margin:0 0 4px;font-size:17px}
   .card .sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
   pre.ticket{background:#fffdf5;border:1px dashed var(--gold);border-radius:8px;
@@ -61,14 +104,13 @@
              overflow-x:auto;margin:0;min-height:120px}
   .sms{display:none;margin-top:16px;gap:14px;align-items:flex-start}
   .sms.show{display:flex}
-  .sms .mini{background:var(--phone);border-radius:20px;padding:10px;width:270px;flex:none}
+  .sms .mini{background:var(--phone);border-radius:20px;padding:10px;width:280px;flex:none}
   .sms .mini .mhead{color:#9a9aa2;font-size:11px;text-align:center;padding-bottom:6px}
   .sms .mini .mbub{background:#2a2a30;color:#e8e8ec;border-radius:12px;padding:10px;
                    font:11px/1.4 ui-monospace,Consolas,Menlo,monospace;white-space:pre;
                    overflow-x:auto;animation:pop .45s ease}
   @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
   .sms .cap{color:var(--muted);font-size:13.5px}
-
   ol.steps{margin:0;padding-left:0;list-style:none;counter-reset:s}
   ol.steps li{counter-increment:s;display:flex;gap:12px;padding:8px 0;align-items:baseline}
   ol.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;
@@ -76,17 +118,15 @@
                       display:inline-flex;align-items:center;justify-content:center}
   .note{background:var(--hit);border-left:3px solid var(--hit-line);border-radius:6px;
         padding:9px 13px;font-size:13.5px;margin-top:10px}
-
   ul.protect{margin:0;padding:0;list-style:none}
-  ul.protect li{display:flex;gap:10px;padding:7px 9px;border-radius:8px;align-items:baseline;
-                transition:background .4s}
+  ul.protect li{display:flex;gap:10px;padding:7px 9px;border-radius:8px;
+                align-items:baseline;transition:background .4s}
   ul.protect li::before{content:"✓";color:var(--muted);font-weight:700;flex:none}
   ul.protect li.hit{background:var(--hit)}
   ul.protect li.hit::before{color:var(--hit-line)}
   ul.protect li .live-tag{display:none;margin-left:auto;color:var(--hit-line);font-size:12px}
   ul.protect li.hit .live-tag{display:inline}
-
-  .price-line{font-size:26px;font-weight:700;margin:2px 0 2px}
+  .price-line{font-size:26px;font-weight:700;margin:2px 0}
   .price-line small{font-size:14px;font-weight:400;color:var(--muted)}
   ul.plain{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
   .roi{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
@@ -108,23 +148,46 @@
 <main class="split">
   <!-- ===================== caller side ===================== -->
   <section id="caller-panel">
-    <div class="phone">
+    <div class="phone" id="phone">
       <div class="phone-head">
         <div class="rname" id="r-name">China Garden</div>
         <div class="rnum" id="r-num">&nbsp;</div>
-        <div class="live" data-i18n="liveLabel">AI answering</div>
       </div>
-      <div class="chat" id="chat"></div>
-      <div class="controls">
-        <button id="start-call" data-i18n="startCall">▶ Start a call</button>
-        <div class="inrow" id="inrow">
-          <button id="mic-btn" title="Hold a turn: tap, speak, it sends">🎤</button>
-          <input id="say" autocomplete="off" placeholder="Say something… (or fn-fn to dictate)">
+
+      <div id="idle-screen">
+        <div class="avatar">🥡</div>
+        <button id="start-call" data-i18n="startCall">📞 Call the restaurant</button>
+        <div class="idle-note" data-i18n="idleNote">This is a live demo of the AI answering an unanswered call — speak or type, English or 中文.</div>
+        <div class="voice-badge" id="voice-badge-idle"></div>
+      </div>
+
+      <div class="callscreen" id="callscreen" style="display:none">
+        <div class="avatar">🥡<div class="ringwave"></div></div>
+        <div class="callstate" id="callstate"></div>
+        <div class="timer" id="timer"></div>
+        <div class="caption" id="caption"></div>
+        <div id="transfer-slot"></div>
+        <div class="voice-badge" id="voice-badge"></div>
+        <div class="ctlrow">
+          <button id="mic-btn" title="Tap, speak — it sends">🎤<span class="ctlbl" data-i18n="micLbl">speak</span></button>
+          <button id="mic-lang" class="small" title="Speech recognition language">EN<span class="ctlbl" data-i18n="micLangLbl">mic lang</span></button>
+          <button id="hf-btn" class="small on" title="Auto-listen after the agent speaks">HF<span class="ctlbl" data-i18n="hfLbl">hands-free</span></button>
+          <button id="spk-btn" title="Agent voice on/off">🔊<span class="ctlbl" data-i18n="spkLbl">voice</span></button>
+          <button id="end-btn" title="End call">⏹<span class="ctlbl" data-i18n="endLbl">end</span></button>
+        </div>
+        <div class="inrow">
+          <input id="say" autocomplete="off">
           <button id="send-btn">➤</button>
-          <button id="spk-btn" title="Agent voice on/off">🔊</button>
         </div>
         <div class="hint" id="hint"></div>
       </div>
+
+      <div id="transcript">
+        <div class="thead"><span data-i18n="transcript">Transcript</span>
+          <button id="transcript-close">✕</button></div>
+        <div class="tlog" id="tlog"></div>
+      </div>
+      <button id="transcript-toggle" data-i18n="transcriptShow">▲ transcript</button>
     </div>
   </section>
 
@@ -132,7 +195,7 @@
   <section id="owner-panel">
     <div class="card">
       <h2 data-i18n="ticketTitle">What your kitchen sees</h2>
-      <p class="sub" data-i18n="ticketSub">The ticket builds live while the caller talks. Nothing is placed until the order is read back and confirmed.</p>
+      <p class="sub" data-i18n="ticketSub">The ticket builds live while the caller talks — in English and Chinese. Nothing is placed until the order is read back and confirmed.</p>
       <pre class="ticket" id="ticket" data-i18n="ticketEmpty">— no order yet — start a call on the left —</pre>
       <div class="sms" id="sms">
         <div class="mini">
@@ -149,7 +212,7 @@
       <ol class="steps">
         <li data-i18n="how1">A customer calls and nobody can pick up — lunch rush, closed, hands full.</li>
         <li data-i18n="how2">The unanswered call forwards automatically to the AI line.</li>
-        <li data-i18n="how3">The AI answers, takes the pickup order, and reads it back to confirm.</li>
+        <li data-i18n="how3">The AI answers in English or Chinese, takes the pickup order, and reads it back to confirm.</li>
         <li data-i18n="how4">The ticket is texted to your phone. Customer picks up as usual.</li>
       </ol>
       <div class="note" data-i18n="howNote">It only answers calls you were already missing — your phone always rings first, and you can switch it off yourself anytime by dialing a code.</div>
@@ -160,7 +223,7 @@
       <p class="sub" data-i18n="protSub">Watch these light up during the call.</p>
       <ul class="protect">
         <li id="p-readback"><span data-i18n="prot1">Every order is read back in full before it is placed — no exceptions.</span><span class="live-tag" data-i18n="justHappened">✔ just happened</span></li>
-        <li id="p-person"><span data-i18n="prot2">The caller can say “person” at any time — the call transfers straight to you.</span><span class="live-tag" data-i18n="justHappened">✔ just happened</span></li>
+        <li id="p-person"><span data-i18n="prot2">The caller can say “person” or “人工” at any time — the call transfers straight to you.</span><span class="live-tag" data-i18n="justHappened">✔ just happened</span></li>
         <li id="p-allergy"><span data-i18n="prot3">Allergy or ingredient-safety questions are never answered by the AI — always handed to a person.</span><span class="live-tag" data-i18n="justHappened">✔ just happened</span></li>
         <li id="p-cards"><span data-i18n="prot4">It never takes card numbers — customers pay at pickup, like always.</span><span class="live-tag" data-i18n="justHappened">✔ just happened</span></li>
       </ul>
@@ -197,13 +260,20 @@
 const I18N = {
   en: {
     tagline:"live demo — the AI that answers the calls you miss",
-    liveLabel:"AI answering", startCall:"▶ Start a call", startAgain:"▶ Start a new call",
-    placeholder:"Say something… (or fn-fn to dictate)",
-    hintOffline:"Offline: mic needs internet — use macOS dictation (press fn twice) or type.",
-    hintEnded:"Call ended.", hintHandoff:"The call would now ring the restaurant's own phone.",
+    startCall:"📞 Call the restaurant", callAgain:"📞 Call again",
+    idleNote:"This is a live demo of the AI answering an unanswered call — speak or type, English or 中文.",
+    ringing:"Ringing…", answered:"AI answered", ended:"Call ended",
+    listening:"Listening — just talk", typeHere:"…or type here",
+    micLbl:"speak", micLangLbl:"mic lang", hfLbl:"hands-free", spkLbl:"voice", endLbl:"end",
+    voiceKokoro:"voice: Kokoro (local neural)", voiceSystem:"voice: system",
+    voiceOff:"voice: off",
+    hintOffline:"Offline: the mic needs internet — use macOS dictation (fn fn) or type.",
+    hintHandoff:"The call would now ring the restaurant's own phone.",
     transfer:"→ transferring to a person — your phone rings",
+    transcript:"Transcript", transcriptShow:"▲ transcript", transcriptHide:"▼ hide",
+    agent:"AGENT", you:"CALLER",
     ticketTitle:"What your kitchen sees",
-    ticketSub:"The ticket builds live while the caller talks. Nothing is placed until the order is read back and confirmed.",
+    ticketSub:"The ticket builds live while the caller talks — in English and Chinese. Nothing is placed until the order is read back and confirmed.",
     ticketEmpty:"— no order yet — start a call on the left —",
     ticketDraft:"DRAFT — order in progress",
     smsHead:"Text message — just now",
@@ -211,12 +281,12 @@ const I18N = {
     howTitle:"How it works", howSub:"Nothing about your phone or number changes.",
     how1:"A customer calls and nobody can pick up — lunch rush, closed, hands full.",
     how2:"The unanswered call forwards automatically to the AI line.",
-    how3:"The AI answers, takes the pickup order, and reads it back to confirm.",
+    how3:"The AI answers in English or Chinese, takes the pickup order, and reads it back to confirm.",
     how4:"The ticket is texted to your phone. Customer picks up as usual.",
     howNote:"It only answers calls you were already missing — your phone always rings first, and you can switch it off yourself anytime by dialing a code.",
     protTitle:"Built-in protections", protSub:"Watch these light up during the call.",
     prot1:"Every order is read back in full before it is placed — no exceptions.",
-    prot2:"The caller can say “person” at any time — the call transfers straight to you.",
+    prot2:"The caller can say “person” or “人工” at any time — the call transfers straight to you.",
     prot3:"Allergy or ingredient-safety questions are never answered by the AI — always handed to a person.",
     prot4:"It never takes card numbers — customers pay at pickup, like always.",
     justHappened:"✔ just happened",
@@ -230,31 +300,38 @@ const I18N = {
   },
   zh: {
     tagline:"现场演示 — 帮您接住漏接电话的 AI 助手",
-    liveLabel:"AI 接听中", startCall:"▶ 开始通话演示", startAgain:"▶ 再来一通电话",
-    placeholder:"输入顾客说的话…（或按两下 fn 语音输入）",
-    hintOffline:"当前离线：麦克风需要网络 — 请用 Mac 听写（按两下 fn）或直接输入。",
-    hintEnded:"通话结束。", hintHandoff:"此时电话会转回您店里的电话。",
-    transfer:"→ 正在转接真人 — 您的电话响起",
+    startCall:"📞 给餐馆打电话", callAgain:"📞 再打一通",
+    idleNote:"这是 AI 接听漏接电话的现场演示——可以说话或打字，中英文都行。",
+    ringing:"拨号中…", answered:"AI 已接听", ended:"通话结束",
+    listening:"正在聆听——请直接说", typeHere:"…或在这里输入",
+    micLbl:"说话", micLangLbl:"识别语言", hfLbl:"免提", spkLbl:"语音", endLbl:"挂断",
+    voiceKokoro:"语音：Kokoro（本地神经网络）", voiceSystem:"语音：系统",
+    voiceOff:"语音：关",
+    hintOffline:"当前离线：麦克风需要网络——请用 Mac 听写（按两下 fn）或直接输入。",
+    hintHandoff:"此时电话会转回您店里的电话。",
+    transfer:"→ 正在转接真人——您的电话响起",
+    transcript:"通话记录", transcriptShow:"▲ 通话记录", transcriptHide:"▼ 收起",
+    agent:"助手", you:"来电",
     ticketTitle:"您厨房收到的订单",
-    ticketSub:"顾客说话的同时，订单实时生成。未经完整复述确认，订单绝不会下达。",
+    ticketSub:"顾客说话的同时，订单实时生成——中英文对照。未经完整复述确认，订单绝不会下达。",
     ticketEmpty:"— 暂无订单 — 请在左侧开始通话 —",
     ticketDraft:"草稿 — 点单进行中",
     smsHead:"短信 — 刚刚",
     smsCap:"订单确认的那一刻，完整订单立即以短信发到您的手机。无需新设备、平板或打印机。",
     howTitle:"运作方式", howSub:"您的电话和号码完全不变。",
-    how1:"顾客来电，但没人能接 — 午市高峰、打烊后、腾不出手。",
+    how1:"顾客来电，但没人能接——午市高峰、打烊后、腾不出手。",
     how2:"无人接听的电话自动转接到 AI 专线。",
-    how3:"AI 接听并记录外卖订单，逐项复述确认。",
+    how3:"AI 用中文或英文接听、记录外卖订单，并逐项复述确认。",
     how4:"订单以短信发到您手机，顾客照常到店取餐。",
-    howNote:"它只接您本来就漏接的电话 — 您的电话永远先响。您随时可以自己拨一个代码关闭转接。",
+    howNote:"它只接您本来就漏接的电话——您的电话永远先响。您随时可以自己拨一个代码关闭转接。",
     protTitle:"内置保障", protSub:"通话过程中，下面的保障会实时亮起。",
-    prot1:"每笔订单下达前必须完整复述确认 — 没有例外。",
-    prot2:"顾客随时说 “person” 即可转接真人 — 直接转到您的电话。",
-    prot3:"过敏或食材安全问题 AI 一律不作答 — 全部转给真人处理。",
-    prot4:"绝不索取银行卡号 — 顾客照常到店付款。",
+    prot1:"每笔订单下达前必须完整复述确认——没有例外。",
+    prot2:"顾客随时说 “person” 或 “人工” 即可转接真人——直接转到您的电话。",
+    prot3:"过敏或食材安全问题 AI 一律不作答——全部转给真人处理。",
+    prot4:"绝不索取银行卡号——顾客照常到店付款。",
     justHappened:"✔ 刚刚发生",
     priceTitle:"价格简单透明", perMonth:" / 月，固定价",
-    price1:"前 30 天免费 — 先看到帮您接回的订单，再决定付费。",
+    price1:"前 30 天免费——先看到帮您接回的订单，再决定付费。",
     price2:"按月付费，无合同，随时取消。",
     price3:"上门安装调试，一次搞定。",
     roiCalls:"每周漏接电话数", roiAvg:"平均单价（$）",
@@ -269,119 +346,253 @@ function applyLang(){
     const key = el.getAttribute("data-i18n");
     if (typeof I18N[lang][key] === "string") el.textContent = I18N[lang][key];
   });
-  document.getElementById("say").placeholder = t("placeholder");
+  document.getElementById("say").placeholder = t("typeHere");
   document.getElementById("lang-toggle").textContent = lang === "en" ? "中文" : "English";
   const startBtn = document.getElementById("start-call");
-  startBtn.textContent = callEnded ? t("startAgain") : t("startCall");
-  renderTicket(); roi();
+  startBtn.textContent = hasCalled ? t("callAgain") : t("startCall");
+  document.getElementById("transcript-toggle").textContent = t("transcriptShow");
+  renderTicket(); roi(); updateVoiceBadge(); updateCallState();
 }
-document.getElementById("lang-toggle").onclick = () => { lang = lang === "en" ? "zh" : "en"; applyLang(); };
+document.getElementById("lang-toggle").onclick = () => {
+  lang = lang === "en" ? "zh" : "en"; applyLang();
+};
 
 /* ---------------- state ---------------- */
-let sessionId = null, callEnded = false, lastOrder = [], lastTotals = null, confirmedTicket = null;
-const chat = document.getElementById("chat");
-const hint = document.getElementById("hint");
+let sessionId = null, inCall = false, hasCalled = false, callT0 = 0, timerIv = null;
+let kokoroAvailable = false, lastEngine = "", spkOn = true, handsFree = true;
+let micLang = "en-US", callState = "";
+let lastOrder = [], lastTotals = null, confirmedTicket = null;
+const $ = id => document.getElementById(id);
 
-/* ---------------- speech out (offline: macOS system voices) ---------------- */
-let spkOn = true;
-document.getElementById("spk-btn").onclick = (e) => {
-  spkOn = !spkOn; e.target.textContent = spkOn ? "🔊" : "🔇";
-  if (!spkOn) speechSynthesis.cancel();
-};
-function speak(text){
-  if (!spkOn || !("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+fetch("/api/tts/status").then(r => r.json())
+  .then(s => { kokoroAvailable = !!s.available; updateVoiceBadge(); })
+  .catch(() => updateVoiceBadge());
+
+function updateVoiceBadge(){
+  const label = !spkOn ? t("voiceOff")
+    : (kokoroAvailable ? t("voiceKokoro") : t("voiceSystem"));
+  $("voice-badge").textContent = label;
+  $("voice-badge-idle").textContent = label;
+}
+function updateCallState(){
+  $("callstate").textContent = callState ? t(callState) : "";
 }
 
-/* ---------------- speech in (online only; offline = dictation/typing) ---- */
-const micBtn = document.getElementById("mic-btn");
+/* ---------------- audio out ---------------- */
+const audioEl = new Audio();
+let speakSeq = 0;
+function setSpeaking(on){ $("phone").classList.toggle("speaking", on); }
+
+function sysSpeak(text, voiceLang){
+  return new Promise(resolve => {
+    if (!("speechSynthesis" in window)) return resolve();
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = voiceLang;
+    u.onend = u.onerror = () => resolve();
+    speechSynthesis.speak(u);
+  });
+}
+
+async function speak(text, replyLang){
+  if (!spkOn) return;
+  const seq = ++speakSeq;
+  setSpeaking(true);
+  try {
+    if (replyLang === "zh"){
+      lastEngine = "system"; await sysSpeak(text, "zh-CN");
+    } else if (kokoroAvailable){
+      try {
+        const resp = await fetch("/api/tts", {method:"POST",
+          headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+        if (!resp.ok) throw new Error("tts " + resp.status);
+        const url = URL.createObjectURL(await resp.blob());
+        lastEngine = "kokoro";
+        await new Promise(res => {
+          audioEl.src = url; audioEl.onended = audioEl.onerror = res;
+          audioEl.play().catch(res);
+        });
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        kokoroAvailable = false; updateVoiceBadge();
+        lastEngine = "system"; await sysSpeak(text, "en-US");
+      }
+    } else {
+      lastEngine = "system"; await sysSpeak(text, "en-US");
+    }
+  } finally {
+    if (seq === speakSeq) setSpeaking(false);
+  }
+  if (seq === speakSeq && inCall && handsFree) startMic(true);
+}
+
+/* ---------------- ringback tone ---------------- */
+function ring(ms){
+  return new Promise(resolve => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const gain = ctx.createGain(); gain.gain.value = 0.06; gain.connect(ctx.destination);
+      [440, 480].forEach(f => {
+        const o = ctx.createOscillator(); o.frequency.value = f;
+        o.connect(gain); o.start(); o.stop(ctx.currentTime + ms / 1000);
+      });
+      setTimeout(() => { ctx.close(); resolve(); }, ms);
+    } catch (e) { setTimeout(resolve, ms); }
+  });
+}
+
+/* ---------------- mic in ---------------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) micBtn.style.display = "none";
+if (!SR) $("mic-btn").style.display = "none";
 let rec = null, recOn = false;
-micBtn.onclick = () => {
-  if (!navigator.onLine){ hint.textContent = t("hintOffline"); return; }
-  if (recOn){ rec.stop(); return; }
-  rec = new SR(); rec.lang = "en-US"; rec.interimResults = true;
-  const input = document.getElementById("say");
-  rec.onresult = (e) => {
+
+function stopMic(){ if (recOn && rec) rec.stop(); }
+function startMic(auto){
+  if (!SR || recOn || !inCall) return;
+  if (!navigator.onLine){
+    if (!auto) $("hint").textContent = t("hintOffline");
+    return;
+  }
+  rec = new SR(); rec.lang = micLang; rec.interimResults = true;
+  const input = $("say");
+  rec.onresult = e => {
     const r = e.results[e.results.length - 1];
-    input.value = r[0].transcript;
+    input.value = r[0].transcript.trim();
     if (r.isFinal) send();
   };
-  rec.onend = () => { recOn = false; micBtn.classList.remove("rec"); };
-  rec.onerror = () => { recOn = false; micBtn.classList.remove("rec"); };
-  recOn = true; micBtn.classList.add("rec"); rec.start();
+  rec.onend = rec.onerror = () => {
+    recOn = false; $("mic-btn").classList.remove("rec");
+    $("phone").classList.remove("listening");
+    if (callState === "listening"){ callState = "answered"; updateCallState(); }
+  };
+  recOn = true; $("mic-btn").classList.add("rec");
+  $("phone").classList.add("listening");
+  callState = "listening"; updateCallState();
+  rec.start();
+}
+$("mic-btn").onclick = () => { recOn ? stopMic() : startMic(false); };
+$("mic-lang").onclick = e => {
+  micLang = micLang === "en-US" ? "zh-CN" : "en-US";
+  e.currentTarget.firstChild.textContent = micLang === "en-US" ? "EN" : "中";
+};
+$("hf-btn").onclick = e => {
+  handsFree = !handsFree; e.currentTarget.classList.toggle("on", handsFree);
+};
+$("spk-btn").onclick = e => {
+  spkOn = !spkOn;
+  e.currentTarget.firstChild.textContent = spkOn ? "🔊" : "🔇";
+  if (!spkOn){ speechSynthesis.cancel(); audioEl.pause(); setSpeaking(false); }
+  updateVoiceBadge();
 };
 
-/* ---------------- chat ---------------- */
-function bubble(cls, text){
+/* ---------------- transcript ---------------- */
+function logBubble(cls, text){
   const div = document.createElement("div");
   div.className = "bub " + cls; div.textContent = text;
-  chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
+  $("tlog").appendChild(div); $("tlog").scrollTop = $("tlog").scrollHeight;
 }
-function transferBanner(){
-  const div = document.createElement("div");
-  div.className = "transfer"; div.textContent = t("transfer");
-  chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
+$("transcript-toggle").onclick = () => $("transcript").classList.add("open");
+$("transcript-close").onclick = () => $("transcript").classList.remove("open");
+
+/* ---------------- caption ---------------- */
+function caption(who, text){
+  $("caption").innerHTML = "";
+  const w = document.createElement("span"); w.className = "who"; w.textContent = t(who);
+  $("caption").appendChild(w);
+  $("caption").appendChild(document.createTextNode(text));
 }
+
+/* ---------------- call lifecycle ---------------- */
+function fmtTime(s){ return String(Math.floor(s/60)).padStart(1,"0") + ":" +
+                     String(s%60).padStart(2,"0"); }
 
 async function startCall(){
-  const resp = await fetch("/api/session", {method:"POST"});
-  const data = await resp.json();
-  sessionId = data.session_id; callEnded = false;
+  hasCalled = true;
+  $("idle-screen").style.display = "none";
+  $("callscreen").style.display = "flex";
+  $("transfer-slot").innerHTML = "";
+  $("tlog").innerHTML = ""; $("hint").textContent = "";
   lastOrder = []; lastTotals = null; confirmedTicket = null;
-  chat.innerHTML = "";
-  document.getElementById("sms").classList.remove("show");
+  $("sms").classList.remove("show");
   document.querySelectorAll("ul.protect li").forEach(li => li.classList.remove("hit"));
-  document.getElementById("r-name").textContent = data.restaurant.name;
-  document.getElementById("r-num").textContent = data.restaurant.phone;
-  document.getElementById("start-call").style.display = "none";
-  document.getElementById("inrow").style.display = "flex";
-  hint.textContent = "";
   renderTicket();
-  bubble("agent", data.greeting); speak(data.greeting);
-  document.getElementById("say").focus();
-}
-document.getElementById("start-call").onclick = startCall;
 
+  callState = "ringing"; updateCallState(); caption("agent", "");
+  const sessionReq = fetch("/api/session", {method:"POST"}).then(r => r.json());
+  await ring(2200);
+  const data = await sessionReq;
+  sessionId = data.session_id; inCall = true;
+  $("r-name").textContent = data.restaurant.name;
+  $("r-num").textContent = data.restaurant.phone;
+
+  callState = "answered"; updateCallState();
+  callT0 = Date.now();
+  timerIv = setInterval(() => {
+    $("timer").textContent = fmtTime(Math.round((Date.now() - callT0) / 1000));
+  }, 500);
+
+  caption("agent", data.greeting);
+  logBubble("agent", data.greeting);
+  await speak(data.greeting, "en");
+  $("say").focus();
+}
+$("start-call").onclick = startCall;
+
+function endCall(silent){
+  inCall = false;
+  stopMic(); speechSynthesis.cancel(); audioEl.pause(); setSpeaking(false);
+  clearInterval(timerIv);
+  callState = "ended"; updateCallState();
+  setTimeout(() => {
+    $("callscreen").style.display = "none";
+    $("idle-screen").style.display = "flex";
+    $("start-call").textContent = t("callAgain");
+    $("timer").textContent = "";
+  }, silent ? 0 : 1400);
+}
+$("end-btn").onclick = () => endCall(false);
+
+/* ---------------- turns ---------------- */
 async function send(){
-  const input = document.getElementById("say");
+  const input = $("say");
   const text = input.value.trim();
-  if (!text || !sessionId || callEnded) return;
+  if (!text || !sessionId || !inCall) return;
   input.value = "";
-  bubble("caller", text);
+  stopMic();
+  caption("you", text);
+  logBubble("caller", text);
   const resp = await fetch("/api/chat", {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({session_id: sessionId, utterance: text}),
   });
   const turn = await resp.json();
-  bubble("agent", turn.reply); speak(turn.reply);
   lastOrder = turn.order; lastTotals = turn.totals; confirmedTicket = turn.ticket;
   renderTicket();
   if (turn.state === "READ_BACK") hit("p-readback");
   if (turn.handoff){
-    hit(/allerg|safety/i.test(turn.reply) ? "p-allergy" : "p-person");
-    transferBanner(); hint.textContent = t("hintHandoff");
+    hit(/allerg|安全|过敏|safety/i.test(turn.reply) ? "p-allergy" : "p-person");
+    const div = document.createElement("div");
+    div.className = "transfer"; div.textContent = t("transfer");
+    $("transfer-slot").appendChild(div);
+    $("hint").textContent = t("hintHandoff");
   }
   if (turn.ticket){ hit("p-readback"); hit("p-cards"); showSms(turn.ticket); }
-  if (turn.done){
-    callEnded = true;
-    document.getElementById("inrow").style.display = "none";
-    const btn = document.getElementById("start-call");
-    btn.style.display = "block"; btn.textContent = t("startAgain");
-    if (!turn.handoff) hint.textContent = t("hintEnded");
-  }
+  caption("agent", turn.reply);
+  logBubble("agent", turn.reply);
+  const wasDone = turn.done;
+  if (wasDone) inCall = false;           // no auto-mic after the last line
+  await speak(turn.reply, turn.lang);
+  if (wasDone) endCall(false);
 }
-document.getElementById("send-btn").onclick = send;
-document.getElementById("say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+$("send-btn").onclick = send;
+$("say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 
-function hit(id){ document.getElementById(id).classList.add("hit"); }
+function hit(id){ $(id).classList.add("hit"); }
 
 /* ---------------- ticket panel ---------------- */
 const money = c => "$" + (c / 100).toFixed(2);
 function renderTicket(){
-  const pre = document.getElementById("ticket");
+  const pre = $("ticket");
   if (confirmedTicket){ pre.textContent = confirmedTicket; return; }
   if (!lastOrder.length){ pre.textContent = t("ticketEmpty"); return; }
   const W = 32, lines = ["=".repeat(W), center(t("ticketDraft"), W), "-".repeat(W)];
@@ -394,23 +605,23 @@ function renderTicket(){
   lines.push("=".repeat(W));
   pre.textContent = lines.join("\n");
 }
-function center(s, w){ const pad = Math.max(0, w - s.length); const l = Math.floor(pad / 2);
-  return " ".repeat(l) + s + " ".repeat(pad - l); }
+function center(s, w){ const pad = Math.max(0, w - s.length);
+  const l = Math.floor(pad / 2); return " ".repeat(l) + s + " ".repeat(pad - l); }
 function showSms(ticket){
-  document.getElementById("sms-body").textContent = ticket;
-  document.getElementById("sms").classList.add("show");
+  $("sms-body").textContent = ticket;
+  $("sms").classList.add("show");
 }
 
 /* ---------------- ROI ---------------- */
 function roi(){
-  const calls = +document.getElementById("roi-calls").value || 0;
-  const avg = +document.getElementById("roi-avg").value || 0;
+  const calls = +$("roi-calls").value || 0;
+  const avg = +$("roi-avg").value || 0;
   const lost = Math.round(calls * 4.3 * avg * 0.5);
-  document.getElementById("roi-lost").textContent = "$" + lost.toLocaleString();
-  document.getElementById("roi-math").textContent = I18N[lang].roiMath(calls, avg, lost.toLocaleString());
+  $("roi-lost").textContent = "$" + lost.toLocaleString();
+  $("roi-math").textContent = I18N[lang].roiMath(calls, avg, lost.toLocaleString());
 }
-document.getElementById("roi-calls").oninput = roi;
-document.getElementById("roi-avg").oninput = roi;
+$("roi-calls").oninput = roi;
+$("roi-avg").oninput = roi;
 
 applyLang(); roi();
 </script>

@@ -21,7 +21,9 @@ def format_ticket(order: Order, when: datetime | None = None) -> str:
     for line in order.lines:
         qty_part = f"{line.qty} x "
         size_part = f"{line.size.name} " if line.size.name else ""
-        lines.append(f"{qty_part}{size_part}{line.item.name}")
+        # bilingual line: the kitchen reads Chinese; the register reads English
+        zh_part = f"  {line.item.name_zh}" if line.item.name_zh else ""
+        lines.append(f"{qty_part}{size_part}{line.item.name}{zh_part}")
         if line.notes:
             lines.append(f"    ** {line.notes.upper()} **")
     lines += [

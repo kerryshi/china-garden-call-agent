@@ -1,5 +1,22 @@
 # STATUS — china-garden call agent
 
+**Shipped 2026-08-03 (desktop, round 2): Chinese + call-feel + neural voice** —
+(1) the agent understands Simplified Chinese: CJK-aware menu matching (zh
+names/aliases in menu.json), a zh RuleBackend path mirroring the safety-first
+ordering (allergen/human first, zh numerals/measure words, 大/小 sizes,
+removal-object resolution so 不要X never mis-removes), and bilingual reply
+templates (`strings.py`; zh wording NEEDS Kerry/family review, incl.
+restaurant.json `zh` policies + greeting tail); kitchen ticket now bilingual
+("2 x Egg Roll  春卷"). (2) Demo page reworked to feel like a call: ring →
+answer → hands-free loop, timer, caption, transcript drawer, EN/中 mic switch.
+(3) English replies via local Kokoro-82M (`/api/tts`, `[tts]` extra,
+`scripts/fetch-tts.sh`, Apache-2.0 — Fish/OpenAudio rejected: CC-BY-NC
+weights); zh replies via OS voice; visible engine badge, 503→system-voice
+fallback. 155 tests green (22 new, failing-first), ruff clean; live smoke:
+full zh order over HTTP correct incl. ticket, TTS 96KB WAV in 0.6s.
+(Earlier zh curl smoke failed from Windows shell mojibake — send UTF-8 JSON
+via --data-binary @file, never inline CJK on the command line.)
+
 **Shipped 2026-08-03 (desktop): demo webapp** — in-person sales surface at
 `china_garden.web` (FastAPI, `[web]` extra) + `static/demo.html`: caller phone
 UI (browser TTS via OS voices, tap-to-talk mic when online, offline = macOS
