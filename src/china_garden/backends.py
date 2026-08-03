@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -601,24 +603,112 @@ def _extract_json(text: str) -> dict:
     return json.loads(cleaned[start:end + 1])
 
 
+class _CliSession:
+    """One long-lived `claude` process in stream-json mode.
+
+    Spawning the CLI per turn costs 5-8s of node/session startup; keeping one
+    process alive and feeding turns over stdin cuts a turn to roughly the
+    model call itself. Turns share the process's conversation, so the prompt
+    re-states the full instructions every time (each parse is self-contained)
+    and the process is recycled every MAX_TURNS to bound context growth.
+    """
+
+    MAX_TURNS = 25
+
+    def __init__(self, cli: str, model: str):
+        self._cli = cli
+        self._model = model
+        self._lock = threading.Lock()
+        self._proc: subprocess.Popen | None = None
+        self._lines: queue.Queue[str | None] = queue.Queue()
+        self._turns = 0
+
+    def _spawn(self) -> None:
+        self._kill()
+        self._proc = subprocess.Popen(
+            [self._cli, "-p", "--input-format", "stream-json",
+             "--output-format", "stream-json", "--verbose",
+             "--model", self._model, "--max-turns", "1"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, encoding="utf-8", bufsize=1)
+        self._lines = queue.Queue()
+        self._turns = 0
+
+        def _reader(proc: subprocess.Popen, out: queue.Queue) -> None:
+            for line in proc.stdout:  # type: ignore[union-attr]
+                out.put(line)
+            out.put(None)  # EOF sentinel
+
+        threading.Thread(target=_reader, args=(self._proc, self._lines),
+                         daemon=True).start()
+
+    def _kill(self) -> None:
+        if self._proc and self._proc.poll() is None:
+            self._proc.kill()
+        self._proc = None
+
+    def warm(self) -> None:
+        with self._lock:
+            if self._proc is None or self._proc.poll() is not None:
+                self._spawn()
+
+    def ask(self, text: str, timeout: float = 45.0) -> str:
+        with self._lock:
+            if (self._proc is None or self._proc.poll() is not None
+                    or self._turns >= self.MAX_TURNS):
+                self._spawn()
+            try:
+                return self._ask_once(text, timeout)
+            except Exception:
+                self._spawn()  # one restart, one retry - then let it raise
+                return self._ask_once(text, timeout)
+
+    def _ask_once(self, text: str, timeout: float) -> str:
+        assert self._proc and self._proc.stdin
+        message = json.dumps({
+            "type": "user",
+            "message": {"role": "user",
+                        "content": [{"type": "text", "text": text}]},
+        }, ensure_ascii=False)
+        self._proc.stdin.write(message + "\n")
+        self._proc.stdin.flush()
+        self._turns += 1
+        while True:
+            line = self._lines.get(timeout=timeout)
+            if line is None:
+                raise RuntimeError("claude CLI exited")
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get("type") == "result":
+                if event.get("is_error"):
+                    raise RuntimeError(str(event.get("result"))[:200])
+                return event.get("result") or ""
+
+
 class ClaudeCliBackend:
     """Intent parsing through the local `claude` CLI - the zero-key path.
 
     Uses the machine's existing Claude Code login (subscription), so no API
-    key is needed. Each parse is a headless `claude -p` run on Haiku: slower
-    than the API backend (seconds per turn) and billed to the subscription's
-    plan usage. Any parse failure degrades to [unknown] - the dialog asks the
-    caller to rephrase; it never crashes mid-call.
+    key is needed. Turns run on Haiku through one persistent CLI process
+    (see _CliSession). Any parse failure degrades to [unknown] - the dialog
+    asks the caller to rephrase; it never crashes mid-call.
     """
 
     def __init__(self, menu: Menu, runner=None, model: str | None = None):
         self.menu = menu
         self.model = model or os.environ.get("CG_CLI_MODEL", HAIKU_MODEL)
+        self._session: _CliSession | None = None
         if runner is None:
-            self._cli = shutil.which("claude")
-            if not self._cli:
+            cli = shutil.which("claude")
+            if not cli:
                 raise RuntimeError("claude CLI not on PATH")
-        self._runner = runner or self._run_cli
+            self._session = _CliSession(cli, self.model)
+        self._runner = runner or self._session.ask
         self._instructions = (
             "You parse a single caller utterance from a Chinese-takeout phone "
             "line into structured intents. The menu is:\n"
@@ -626,17 +716,24 @@ class ClaudeCliBackend:
             'Respond with ONLY a JSON object, no prose: {"intents": [{"kind": '
             f"one of {list(KINDS)}, " '"item_query": str, "qty": int, '
             '"size": "" | "pint" | "quart", "notes": str, '
-            f'"topic": "" or one of {list(FAQ_TOPICS)}}}]}}'
+            f'"topic": "" or one of {list(FAQ_TOPICS)}}}]}}. Ignore any earlier '
+            "turns in this conversation - parse ONLY the utterance below."
         )
 
-    def _run_cli(self, prompt: str) -> str:
-        proc = subprocess.run(
-            [self._cli, "-p", prompt, "--model", self.model,
-             "--output-format", "json"],
-            capture_output=True, text=True, encoding="utf-8", timeout=60)
-        if proc.returncode != 0:
-            raise RuntimeError((proc.stderr or "claude CLI failed").strip()[:200])
-        return json.loads(proc.stdout)["result"]
+    def warm(self) -> None:
+        """Spawn the CLI process AND complete its first (slow) exchange in the
+        background, so the first caller turn runs at warm-session speed."""
+        if not self._session:
+            return
+
+        def _ping() -> None:
+            try:
+                self._session.ask('Respond with only: {"intents": []}',
+                                  timeout=90)
+            except Exception:
+                pass  # first real ask() will retry and surface the failure
+
+        threading.Thread(target=_ping, daemon=True).start()
 
     def parse(self, utterance: str, context: Context) -> list[Intent]:
         prompt = (

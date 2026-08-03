@@ -385,7 +385,41 @@ function updateCallState(){
 
 /* ---------------- audio out ---------------- */
 const audioEl = new Audio();
+const fillerEl = new Audio();
 let speakSeq = 0;
+
+/* Instant acknowledgments mask the model's think time, like a human
+   order-taker's "mm-hm, one sec". Pre-synthesized at call start. */
+const FILLERS_EN = ["Okay.", "Mm-hm.", "One moment.", "Let me get that."];
+const FILLERS_ZH = ["好的。", "稍等。", "嗯。"];
+const fillerCache = new Map();
+async function prefetchFillers(){
+  if (!kokoroAvailable) return;
+  for (const f of FILLERS_EN){
+    try {
+      const resp = await fetch("/api/tts", {method:"POST",
+        headers:{"Content-Type":"application/json"}, body:JSON.stringify({text:f})});
+      if (resp.ok) fillerCache.set(f, URL.createObjectURL(await resp.blob()));
+    } catch (e) { break; }
+  }
+}
+function playFiller(isZh){
+  if (!spkOn || brain === "rule") return;   // rules answer instantly anyway
+  if (isZh){
+    const f = FILLERS_ZH[Math.floor(Math.random()*FILLERS_ZH.length)];
+    if ("speechSynthesis" in window){
+      const u = new SpeechSynthesisUtterance(f); u.lang = "zh-CN";
+      speechSynthesis.speak(u);
+    }
+    return;
+  }
+  const f = FILLERS_EN[Math.floor(Math.random()*FILLERS_EN.length)];
+  const url = fillerCache.get(f);
+  if (url){ fillerEl.src = url; fillerEl.play().catch(()=>{}); }
+  else if ("speechSynthesis" in window){
+    const u = new SpeechSynthesisUtterance(f); speechSynthesis.speak(u);
+  }
+}
 function setSpeaking(on){ $("phone").classList.toggle("speaking", on); }
 
 function sysSpeak(text, voiceLang){
@@ -401,6 +435,7 @@ function sysSpeak(text, voiceLang){
 
 async function speak(text, replyLang){
   if (!spkOn) return;
+  fillerEl.pause(); speechSynthesis.cancel();
   const seq = ++speakSeq;
   setSpeaking(true);
   try {
@@ -555,6 +590,7 @@ async function startCall(){
 
   caption("agent", data.greeting, data.greeting_zh);
   logBubble("agent", data.greeting, data.greeting_zh);
+  prefetchFillers();
   await speak(data.greeting, "en");
   $("say").focus();
 }
@@ -583,6 +619,7 @@ async function send(){
   stopMic();
   caption("you", text);
   logBubble("caller", text);
+  playFiller(/[一-鿿]/.test(text));
   const resp = await fetch("/api/chat", {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({session_id: sessionId, utterance: text}),

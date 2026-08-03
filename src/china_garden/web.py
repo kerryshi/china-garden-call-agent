@@ -95,6 +95,7 @@ def create_app(tts: object = "auto", backend: str | None = None) -> FastAPI:
         try:
             from .backends import ClaudeCliBackend
             probe = ClaudeCliBackend(menu)  # raises if the CLI is missing
+            probe.warm()  # spawn the persistent CLI before the first caller
             backend_name = "claude"
             make_backend = lambda: probe  # noqa: E731  (stateless per call)
         except Exception as e:  # visible degradation, never silent
