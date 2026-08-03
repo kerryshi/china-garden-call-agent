@@ -13,6 +13,7 @@ Parse priority is safety-first and state-aware (ordering matters — the
 from __future__ import annotations
 
 import json
+import logging
 import os
 import queue
 import re
@@ -24,6 +25,8 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from .menu import Menu
+
+log = logging.getLogger("china_garden.backends")
 
 KINDS = (
     "add_item", "remove_item", "set_qty", "done_ordering", "confirm", "deny",
@@ -698,8 +701,8 @@ class _CliSession:
         def _prep() -> None:
             try:
                 self._standby = self._boot()
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("cli standby prep failed: %s", e)
             finally:
                 self._preparing = False
 
@@ -794,7 +797,10 @@ class ClaudeCliBackend:
         try:
             data = _extract_json(self._runner(prompt))
             return _intents_from_raw(data.get("intents", []))
-        except Exception:
+        except Exception as e:
+            # degraded-but-alive: the caller hears "didn't catch that", the
+            # operator sees why in the server log
+            log.warning("cli parse failed (%s): %s", e.__class__.__name__, e)
             return [Intent("unknown")]
 
 
