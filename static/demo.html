@@ -40,8 +40,14 @@
   .avatar .ringwave{position:absolute;inset:-8px;border-radius:50%;
           border:2px solid var(--green);opacity:0;pointer-events:none}
   .phone.speaking .avatar .ringwave{animation:wave 1.2s ease-out infinite}
+  .phone.thinking .avatar .ringwave{animation:wave 1s ease-out infinite;
+                                    border-color:var(--gold)}
   @keyframes wave{0%{transform:scale(.92);opacity:.85}100%{transform:scale(1.28);opacity:0}}
   .phone.listening .avatar{outline:3px solid var(--bubble-c);outline-offset:4px}
+  .dots i{font-style:normal;animation:blink 1.2s infinite;opacity:.2}
+  .dots i:nth-child(2){animation-delay:.35s}
+  .dots i:nth-child(3){animation-delay:.7s}
+  @keyframes blink{0%,80%,100%{opacity:.2}30%{opacity:1}}
   .callstate{font-size:14px;color:#9a9aa2;min-height:20px}
   .timer{font-size:13px;color:#7ee2a8;min-height:18px;font-variant-numeric:tabular-nums}
   .caption{flex:1;width:100%;overflow-y:auto;text-align:center;font-size:15.5px;
@@ -232,7 +238,8 @@
 
     <div class="card">
       <h2 data-i18n="priceTitle">Simple pricing</h2>
-      <div class="price-line">$99–149<small data-i18n="perMonth"> / month, flat</small></div>
+      <div class="price-line"><span id="price-big">$129</span><small data-i18n="perMonth"> / month, flat</small></div>
+      <div class="note" id="founder-note" data-i18n="founder">Founding rate for the first 10 restaurants: $99/mo, locked for good.</div>
       <ul class="plain">
         <li data-i18n="price1">First 30 days free — see the recovered orders before you pay anything.</li>
         <li data-i18n="price2">Month to month. No contract. Cancel anytime.</li>
@@ -264,7 +271,9 @@ const I18N = {
     startCall:"📞 Call the restaurant", callAgain:"📞 Call again",
     idleNote:"This is a live demo of the AI answering an unanswered call — speak or type, English or 中文.",
     ringing:"Ringing…", answered:"AI answered", ended:"Call ended",
-    listening:"Listening — just talk", typeHere:"…or type here",
+    thinking:"Taking that down", listening:"Listening — just talk",
+    typeHere:"…or type here",
+    founder:"Founding rate for the first 10 restaurants: $99/mo, locked for good.",
     micLbl:"speak", micLangLbl:"mic lang", hfLbl:"hands-free", spkLbl:"voice", endLbl:"end",
     voiceKokoro:"voice: Kokoro (local neural)", voiceSystem:"voice: system",
     voiceOff:"voice: off",
@@ -305,7 +314,9 @@ const I18N = {
     startCall:"📞 给餐馆打电话", callAgain:"📞 再打一通",
     idleNote:"这是 AI 接听漏接电话的现场演示——可以说话或打字，中英文都行。",
     ringing:"拨号中…", answered:"AI 已接听", ended:"通话结束",
-    listening:"正在聆听——请直接说", typeHere:"…或在这里输入",
+    thinking:"正在记录", listening:"正在聆听——请直接说",
+    typeHere:"…或在这里输入",
+    founder:"前 10 家创始客户：$99/月，永久锁定。",
     micLbl:"说话", micLangLbl:"识别语言", hfLbl:"免提", spkLbl:"语音", endLbl:"挂断",
     voiceKokoro:"语音：Kokoro（本地神经网络）", voiceSystem:"语音：系统",
     voiceOff:"语音：关",
@@ -387,8 +398,24 @@ function updateVoiceBadge(){
   $("brain-badge").textContent = brain === "rule" ? t("brainRules") : t("brainHaiku");
 }
 function updateCallState(){
-  $("callstate").textContent = callState ? t(callState) : "";
+  const el = $("callstate");
+  el.textContent = callState ? t(callState) : "";
+  if (callState === "thinking"){
+    const d = document.createElement("span");
+    d.className = "dots"; d.innerHTML = "<i>·</i><i>·</i><i>·</i>";
+    el.appendChild(d);
+  }
 }
+
+/* price variant for pitches: ?price=99|129|149|199 shows that number;
+   the founding-rate note only rides the default $129 */
+(function(){
+  const p = new URLSearchParams(location.search).get("price");
+  if (p && ["79","99","129","149","199","249"].includes(p)){
+    document.getElementById("price-big").textContent = "$" + p;
+    if (p !== "129") document.getElementById("founder-note").style.display = "none";
+  }
+})();
 
 /* ---------------- audio out ---------------- */
 const audioEl = new Audio();
@@ -440,6 +467,11 @@ function sysSpeak(text, voiceLang){
   });
 }
 
+let pendingTts = null;  /* one-shot prefetch (greeting during ringback) */
+function prefetchTts(text){
+  if (kokoroAvailable) pendingTts = {text, promise: fetchWavUrl(text).catch(() => null)};
+}
+
 async function fetchWavUrl(text){
   const resp = await fetch("/api/tts", {method:"POST",
     headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
@@ -474,16 +506,28 @@ async function speak(text, replyLang){
       lastEngine = "system"; await sysSpeak(text, "zh-CN");
     } else if (kokoroAvailable){
       try {
-        const [first, rest] = splitFirstSentence(text);
-        const url1 = await fetchWavUrl(first);
-        const restPromise = rest ? fetchWavUrl(rest) : null;
-        lastEngine = "kokoro";
-        await playUrl(url1);
-        URL.revokeObjectURL(url1);
-        if (restPromise && seq === speakSeq){
-          const url2 = await restPromise;
-          await playUrl(url2);
-          URL.revokeObjectURL(url2);
+        let played = false;
+        if (pendingTts && pendingTts.text === text){
+          const url = await pendingTts.promise;
+          pendingTts = null;
+          if (url){
+            lastEngine = "kokoro";
+            await playUrl(url); URL.revokeObjectURL(url);
+            played = true;
+          }
+        }
+        if (!played){
+          const [first, rest] = splitFirstSentence(text);
+          const url1 = await fetchWavUrl(first);
+          const restPromise = rest ? fetchWavUrl(rest) : null;
+          lastEngine = "kokoro";
+          await playUrl(url1);
+          URL.revokeObjectURL(url1);
+          if (restPromise && seq === speakSeq){
+            const url2 = await restPromise;
+            await playUrl(url2);
+            URL.revokeObjectURL(url2);
+          }
         }
       } catch (e) {
         if (e instanceof TypeError){ kokoroAvailable = false; updateVoiceBadge(); }
@@ -530,6 +574,7 @@ function startMic(auto){
   rec.onresult = e => {
     const r = e.results[e.results.length - 1];
     input.value = r[0].transcript.trim();
+    caption("you", input.value);   // live transcript while speaking
     if (r.isFinal) send();
   };
   rec.onend = rec.onerror = () => {
@@ -601,7 +646,8 @@ async function startCall(){
 
   callState = "ringing"; updateCallState(); caption("agent", "");
   const sessionReq = fetch("/api/session", {method:"POST"}).then(r => r.json());
-  await ring(2200);
+  sessionReq.then(d => prefetchTts(d.greeting));  // synthesize during the ring
+  await ring(1600);
   const data = await sessionReq;
   sessionId = data.session_id; inCall = true;
   brain = data.backend; updateVoiceBadge();
@@ -650,6 +696,8 @@ async function send(){
   // turns are instant rules; only Claude-escalated ones need masking) -
   // and again a few seconds later so a slow turn never leaves dead air
   const isZhTurn = /[一-鿿]/.test(text);
+  callState = "thinking"; updateCallState();
+  $("phone").classList.add("thinking");
   const fillerTimer = setTimeout(() => playFiller(isZhTurn), 650);
   const fillerTimer2 = setTimeout(() => playFiller(isZhTurn), 4800);
   const resp = await fetch("/api/chat", {
@@ -658,6 +706,8 @@ async function send(){
   });
   const turn = await resp.json();
   clearTimeout(fillerTimer); clearTimeout(fillerTimer2);
+  $("phone").classList.remove("thinking");
+  callState = "answered"; updateCallState();
   lastOrder = turn.order; lastTotals = turn.totals; confirmedTicket = turn.ticket;
   renderTicket();
   if (turn.state === "READ_BACK") hit("p-readback");
