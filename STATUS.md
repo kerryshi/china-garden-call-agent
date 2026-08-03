@@ -14,6 +14,18 @@ haiku fallback verified, full greeting through Kokoro 200/320KB.
 **BLOCKED on Kerry:** Anthropic API key on desktop+Mac for the Haiku live
 smoke (then `CG_BACKEND=haiku` in the LaunchAgent env).
 
+**Round 6: latency tail tamed** — hot-standby CLI rotation (a successor
+process is spawned + init-exchanged in the background; rotation/failure
+promotes it between turns - boot never lands in a caller turn; _ensure_active
+waits for a mid-boot standby instead of double-booting), standing
+instructions sent once per process (per-turn prompt = state + utterance),
+--strict-mcp-config on spawns, first-sentence TTS streaming, second spoken
+acknowledgment at ~4.8s for upstream spikes, and CLI failures now logged
+(were silently swallowed). Escalated turns: desktop avg 4.7s (was 7.2, most
+3-4s), Mac steady-state ~3s; clean turns ~0.01s. Known: the FIRST escalation
+within ~40s of a server (re)start can wait on the standby boot (~10-15s on
+the Air) - give the LaunchAgent a minute after reboot before demoing.
+
 **Round 5: hybrid brain + fully bilingual page** — CG_BACKEND=claude now
 builds HybridBackend: RuleBackend answers instantly (0.00-0.03s measured);
 only parses containing unknown escalate to the persistent Claude CLI (~4s,
