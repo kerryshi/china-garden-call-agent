@@ -210,8 +210,16 @@ class RuleBackend:
 
         done = re.search(_DONE, text)
         if done:
+            # the remainder must go through the same correction-first pipeline
+            # as a standalone utterance: "make it two egg rolls, that's all"
+            # is a qty CHANGE, "remove the soup, that's everything" a removal -
+            # feeding either to add-parsing silently inflates the order
             remainder = text.replace(done.group(0), " ")
-            return [*self._parse_items(remainder), Intent("done_ordering")]
+            if re.search(_REMOVAL, remainder):
+                lead = self._parse_removal(remainder)
+            else:
+                lead = self._parse_set_qty(remainder) or self._parse_items(remainder)
+            return [*lead, Intent("done_ordering")]
 
         if re.search(_REMOVAL, text):
             return self._parse_removal(text)

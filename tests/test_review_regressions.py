@@ -244,3 +244,22 @@ def test_multi_intent_backend_cannot_confirm_unheard_read_back(menu, restaurant)
     reply = session.handle("two egg rolls that's it yes")
     assert session.state == "READ_BACK"  # was: CONFIRMED in one turn
     assert not reply.done
+
+
+# --- done-phrase remainder: corrections must not become additions ----------
+# (2026-08-03 QA battery: "make it two egg rolls, that's all" after ordering
+# three merged to FIVE - the done branch fed the remainder to add-parsing)
+
+def test_set_qty_with_done_in_same_breath(session):
+    session.handle("three egg rolls")
+    session.handle("make it two egg rolls, that's all")
+    assert session.state == "READ_BACK"
+    assert [(line.item.id, line.qty) for line in session.order.lines] == [
+        ("egg_roll", 2)]
+
+
+def test_removal_with_done_in_same_breath(session):
+    session.handle("three egg rolls and a pint of wonton soup")
+    session.handle("remove the wonton soup, that's everything")
+    assert session.state == "READ_BACK"
+    assert [line.item.id for line in session.order.lines] == ["egg_roll"]
