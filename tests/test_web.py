@@ -137,6 +137,15 @@ def test_session_and_chat_carry_both_languages(client):
     assert "复述" in zh_turn["reply_zh"]
 
 
+def test_claude_cli_backend_selected_or_loud():
+    app_client = TestClient(create_app(backend="claude"))
+    data = app_client.post("/api/session").json()
+    if data["backend"] == "rule":  # box without the claude CLI
+        assert data["backend_note"]
+    else:
+        assert data["backend"] == "claude"
+
+
 def test_haiku_backend_falls_back_visibly_without_credentials():
     app_client = TestClient(create_app(backend="haiku"))
     data = app_client.post("/api/session").json()

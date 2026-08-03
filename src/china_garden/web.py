@@ -91,7 +91,15 @@ def create_app(tts: object = "auto", backend: str | None = None) -> FastAPI:
     requested = (backend or os.environ.get("CG_BACKEND", "rule")).lower()
     backend_name, backend_note = "rule", ""
     make_backend = lambda: RuleBackend(menu)  # noqa: E731
-    if requested == "haiku":
+    if requested in ("claude", "claude-cli", "sub"):
+        try:
+            from .backends import ClaudeCliBackend
+            probe = ClaudeCliBackend(menu)  # raises if the CLI is missing
+            backend_name = "claude"
+            make_backend = lambda: probe  # noqa: E731  (stateless per call)
+        except Exception as e:  # visible degradation, never silent
+            backend_note = f"claude CLI unavailable ({e}); using rules"
+    elif requested == "haiku":
         try:
             from .backends import HaikuBackend
             probe = HaikuBackend(menu)  # raises without the [llm] extra

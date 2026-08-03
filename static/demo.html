@@ -377,7 +377,7 @@ function updateVoiceBadge(){
     : (kokoroAvailable ? t("voiceKokoro") : t("voiceSystem"));
   $("voice-badge").textContent = label;
   $("voice-badge-idle").textContent = label;
-  $("brain-badge").textContent = brain === "haiku" ? t("brainHaiku") : t("brainRules");
+  $("brain-badge").textContent = brain === "rule" ? t("brainRules") : t("brainHaiku");
 }
 function updateCallState(){
   $("callstate").textContent = callState ? t(callState) : "";

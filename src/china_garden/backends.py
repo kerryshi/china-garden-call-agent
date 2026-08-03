@@ -12,7 +12,11 @@ Parse priority is safety-first and state-aware (ordering matters — the
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -462,6 +466,50 @@ class RuleBackend:
 
 HAIKU_MODEL = "claude-haiku-4-5"
 
+
+def _menu_prompt_lines(menu: Menu) -> str:
+    lines = []
+    for it in menu.items:
+        line = f"- {it.name}"
+        if it.name_zh:
+            line += f" / {it.name_zh}"
+        if it.sizes[0].name:
+            line += f" (sizes: {', '.join(s.name for s in it.sizes)})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+_PARSE_RULES = (
+    "Rules: one intent per distinct request; qty defaults to 1; size is "
+    "'' unless the caller names one; allergy/ingredient-safety questions "
+    "are kind=allergen (never answer them); requests for a person are "
+    "kind=request_human; a caller asking the price/cost of a menu item "
+    "is kind=item_price with item_query set to that item, never a "
+    "made-up price; in the READ_BACK state a plain agreement is "
+    "kind=confirm and a correction is kind=deny - never confirm an "
+    "utterance that also asks for a change. The caller may speak English "
+    "or Chinese; match Chinese dish names to the menu and put the "
+    "English item name in item_query. Keep notes (spice level, no "
+    "scallions, ...) in the caller's own words."
+)
+
+
+def _intents_from_raw(raw: list[dict]) -> list[Intent]:
+    intents = [
+        Intent(
+            kind=i.get("kind", "unknown"),
+            item_query=i.get("item_query", ""),
+            # set_qty may legitimately be 0 (= remove the line)
+            qty=max(0 if i.get("kind") == "set_qty" else 1,
+                    int(i.get("qty", 1))),
+            size=i.get("size", ""),
+            notes=i.get("notes", ""),
+            topic=i.get("topic", ""),
+        )
+        for i in raw
+    ]
+    return intents or [Intent("unknown")]
+
 _INTENT_TOOL = {
     "name": "record_intents",
     "description": (
@@ -516,22 +564,10 @@ class HaikuBackend:
             client = anthropic.Anthropic()
         self.client = client
         self.menu = menu
-        item_lines = "\n".join(
-            f"- {it.name}" + (f" (sizes: {', '.join(s.name for s in it.sizes)})"
-                              if it.sizes[0].name else "")
-            for it in menu.items
-        )
         self._system = (
             "You parse a single caller utterance from a Chinese-takeout phone "
-            "line into structured intents. The menu is:\n" + item_lines + "\n"
-            "Rules: one intent per distinct request; qty defaults to 1; size is "
-            "'' unless the caller names one; allergy/ingredient-safety questions "
-            "are kind=allergen (never answer them); requests for a person are "
-            "kind=request_human; a caller asking the price/cost of a menu item "
-            "is kind=item_price with item_query set to that item, never a "
-            "made-up price; in the READ_BACK state a plain agreement is "
-            "kind=confirm and a correction is kind=deny - never confirm an "
-            "utterance that also asks for a change."
+            "line into structured intents. The menu is:\n"
+            + _menu_prompt_lines(menu) + "\n" + _PARSE_RULES
         )
 
     def parse(self, utterance: str, context: Context) -> list[Intent]:
@@ -552,19 +588,65 @@ class HaikuBackend:
         )
         for block in response.content:
             if block.type == "tool_use":
-                raw = block.input.get("intents", [])
-                intents = [
-                    Intent(
-                        kind=i.get("kind", "unknown"),
-                        item_query=i.get("item_query", ""),
-                        # set_qty may legitimately be 0 (= remove the line)
-                        qty=max(0 if i.get("kind") == "set_qty" else 1,
-                                int(i.get("qty", 1))),
-                        size=i.get("size", ""),
-                        notes=i.get("notes", ""),
-                        topic=i.get("topic", ""),
-                    )
-                    for i in raw
-                ]
-                return intents or [Intent("unknown")]
+                return _intents_from_raw(block.input.get("intents", []))
         return [Intent("unknown")]
+
+
+def _extract_json(text: str) -> dict:
+    """Pull the first JSON object out of a model reply (fences tolerated)."""
+    cleaned = re.sub(r"```(?:json)?", "", text)
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start == -1 or end <= start:
+        raise ValueError("no JSON object in reply")
+    return json.loads(cleaned[start:end + 1])
+
+
+class ClaudeCliBackend:
+    """Intent parsing through the local `claude` CLI - the zero-key path.
+
+    Uses the machine's existing Claude Code login (subscription), so no API
+    key is needed. Each parse is a headless `claude -p` run on Haiku: slower
+    than the API backend (seconds per turn) and billed to the subscription's
+    plan usage. Any parse failure degrades to [unknown] - the dialog asks the
+    caller to rephrase; it never crashes mid-call.
+    """
+
+    def __init__(self, menu: Menu, runner=None, model: str | None = None):
+        self.menu = menu
+        self.model = model or os.environ.get("CG_CLI_MODEL", HAIKU_MODEL)
+        if runner is None:
+            self._cli = shutil.which("claude")
+            if not self._cli:
+                raise RuntimeError("claude CLI not on PATH")
+        self._runner = runner or self._run_cli
+        self._instructions = (
+            "You parse a single caller utterance from a Chinese-takeout phone "
+            "line into structured intents. The menu is:\n"
+            + _menu_prompt_lines(menu) + "\n" + _PARSE_RULES + "\n"
+            'Respond with ONLY a JSON object, no prose: {"intents": [{"kind": '
+            f"one of {list(KINDS)}, " '"item_query": str, "qty": int, '
+            '"size": "" | "pint" | "quart", "notes": str, '
+            f'"topic": "" or one of {list(FAQ_TOPICS)}}}]}}'
+        )
+
+    def _run_cli(self, prompt: str) -> str:
+        proc = subprocess.run(
+            [self._cli, "-p", prompt, "--model", self.model,
+             "--output-format", "json"],
+            capture_output=True, text=True, encoding="utf-8", timeout=60)
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or "claude CLI failed").strip()[:200])
+        return json.loads(proc.stdout)["result"]
+
+    def parse(self, utterance: str, context: Context) -> list[Intent]:
+        prompt = (
+            f"{self._instructions}\n\n"
+            f"Dialog state: {context.state}\n"
+            f"Order so far: {', '.join(context.order_item_ids) or 'empty'}\n"
+            f"Caller said: {utterance}"
+        )
+        try:
+            data = _extract_json(self._runner(prompt))
+            return _intents_from_raw(data.get("intents", []))
+        except Exception:
+            return [Intent("unknown")]

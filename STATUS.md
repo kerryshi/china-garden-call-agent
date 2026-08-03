@@ -14,6 +14,15 @@ haiku fallback verified, full greeting through Kokoro 200/320KB.
 **BLOCKED on Kerry:** Anthropic API key on desktop+Mac for the Haiku live
 smoke (then `CG_BACKEND=haiku` in the LaunchAgent env).
 
+**Round 4: subscription brain LIVE** — `ClaudeCliBackend` parses via headless
+`claude -p --model claude-haiku-4-5 --output-format json` on the box's Claude
+Code login (no API key; plan usage). Shared intent builder with HaikuBackend;
+parse failure degrades to unknown (never crashes a call); `CG_BACKEND=claude`;
+loud fallback when the CLI is missing. Live-fired on desktop through the web
+app: messy English, mid-order correction, colloquial zh (帮我再加一个左宗鸡，
+要辣一点的) all parsed right; 8-12s/turn (CLI overhead - the API-key path is
+the fast lane when a key lands). Mac LaunchAgent runs CG_BACKEND=claude.
+
 **Shipped 2026-08-03 (desktop, round 2): Chinese + call-feel + neural voice** —
 (1) the agent understands Simplified Chinese: CJK-aware menu matching (zh
 names/aliases in menu.json), a zh RuleBackend path mirroring the safety-first
