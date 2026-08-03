@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time as _time
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -606,78 +607,46 @@ def _extract_json(text: str) -> dict:
     return json.loads(cleaned[start:end + 1])
 
 
-class _CliSession:
-    """One long-lived `claude` process in stream-json mode.
-
-    Spawning the CLI per turn costs 5-8s of node/session startup; keeping one
-    process alive and feeding turns over stdin cuts a turn to roughly the
-    model call itself. Turns share the process's conversation, so the prompt
-    re-states the full instructions every time (each parse is self-contained)
-    and the process is recycled every MAX_TURNS to bound context growth.
-    """
-
-    MAX_TURNS = 25
+class _CliProc:
+    """One spawned `claude` stream-json process with its reader thread."""
 
     def __init__(self, cli: str, model: str):
-        self._cli = cli
-        self._model = model
-        self._lock = threading.Lock()
-        self._proc: subprocess.Popen | None = None
-        self._lines: queue.Queue[str | None] = queue.Queue()
-        self._turns = 0
-
-    def _spawn(self) -> None:
-        self._kill()
-        self._proc = subprocess.Popen(
-            [self._cli, "-p", "--input-format", "stream-json",
+        self.proc = subprocess.Popen(
+            [cli, "-p", "--input-format", "stream-json",
              "--output-format", "stream-json", "--verbose",
-             "--model", self._model, "--max-turns", "1"],
+             "--model", model, "--max-turns", "1", "--strict-mcp-config"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, encoding="utf-8", bufsize=1)
-        self._lines = queue.Queue()
-        self._turns = 0
+        self.lines: queue.Queue[str | None] = queue.Queue()
+        self.turns = 0
 
         def _reader(proc: subprocess.Popen, out: queue.Queue) -> None:
             for line in proc.stdout:  # type: ignore[union-attr]
                 out.put(line)
             out.put(None)  # EOF sentinel
 
-        threading.Thread(target=_reader, args=(self._proc, self._lines),
+        threading.Thread(target=_reader, args=(self.proc, self.lines),
                          daemon=True).start()
 
-    def _kill(self) -> None:
-        if self._proc and self._proc.poll() is None:
-            self._proc.kill()
-        self._proc = None
+    def alive(self) -> bool:
+        return self.proc.poll() is None
 
-    def warm(self) -> None:
-        with self._lock:
-            if self._proc is None or self._proc.poll() is not None:
-                self._spawn()
+    def kill(self) -> None:
+        if self.alive():
+            self.proc.kill()
 
-    def ask(self, text: str, timeout: float = 45.0) -> str:
-        with self._lock:
-            if (self._proc is None or self._proc.poll() is not None
-                    or self._turns >= self.MAX_TURNS):
-                self._spawn()
-            try:
-                return self._ask_once(text, timeout)
-            except Exception:
-                self._spawn()  # one restart, one retry - then let it raise
-                return self._ask_once(text, timeout)
-
-    def _ask_once(self, text: str, timeout: float) -> str:
-        assert self._proc and self._proc.stdin
+    def ask(self, text: str, timeout: float) -> str:
+        assert self.proc.stdin
         message = json.dumps({
             "type": "user",
             "message": {"role": "user",
                         "content": [{"type": "text", "text": text}]},
         }, ensure_ascii=False)
-        self._proc.stdin.write(message + "\n")
-        self._proc.stdin.flush()
-        self._turns += 1
+        self.proc.stdin.write(message + "\n")
+        self.proc.stdin.flush()
+        self.turns += 1
         while True:
-            line = self._lines.get(timeout=timeout)
+            line = self.lines.get(timeout=timeout)
             if line is None:
                 raise RuntimeError("claude CLI exited")
             line = line.strip()
@@ -693,6 +662,87 @@ class _CliSession:
                 return event.get("result") or ""
 
 
+class _CliSession:
+    """Persistent `claude` transport with a hot standby.
+
+    The expensive part of the CLI path is booting a process and its first
+    exchange (node startup + session init, several seconds). This class makes
+    sure that cost NEVER lands inside a caller turn: a standby process is
+    spawned and pinged in the background, and rotation (context-growth
+    recycling every MAX_TURNS, or replacing a dead/failed process) promotes
+    the pre-warmed standby between turns instead of booting inline.
+    """
+
+    MAX_TURNS = 25
+    PREPARE_AT = 15  # start prepping the successor well before rotation
+
+    def __init__(self, cli: str, model: str, init_text: str):
+        self._cli = cli
+        self._model = model
+        self._init_text = init_text  # standing instructions, sent once per proc
+        self._lock = threading.Lock()          # serializes ask()
+        self._active: _CliProc | None = None
+        self._standby: _CliProc | None = None
+        self._preparing = False
+
+    def _boot(self) -> _CliProc:
+        proc = _CliProc(self._cli, self._model)
+        proc.ask(self._init_text, timeout=90)  # slow init exchange + instructions
+        return proc
+
+    def _prepare_standby_async(self) -> None:
+        if self._preparing or self._standby is not None:
+            return
+        self._preparing = True
+
+        def _prep() -> None:
+            try:
+                self._standby = self._boot()
+            except Exception:
+                pass
+            finally:
+                self._preparing = False
+
+        threading.Thread(target=_prep, daemon=True).start()
+
+    def _take_standby(self, wait: float = 0.0) -> _CliProc | None:
+        deadline = _time.monotonic() + wait
+        while (self._standby is None and self._preparing
+               and _time.monotonic() < deadline):
+            _time.sleep(0.2)  # a standby is mid-boot; cheaper to wait than re-boot
+        cand, self._standby = self._standby, None
+        if cand is not None and not cand.alive():
+            cand = None
+        return cand
+
+    def _ensure_active(self) -> None:
+        if self._active is not None and self._active.alive():
+            return
+        self._active = self._take_standby(wait=25.0) or self._boot()
+
+    def warm(self) -> None:
+        self._prepare_standby_async()
+
+    def ask(self, text: str, timeout: float = 45.0) -> str:
+        with self._lock:
+            self._ensure_active()
+            try:
+                result = self._active.ask(text, timeout)
+            except Exception:
+                # replace the wedged process; prefer the pre-warmed standby
+                self._active.kill()
+                self._active = self._take_standby(wait=25.0) or self._boot()
+                result = self._active.ask(text, timeout)
+            if self._active.turns >= self.PREPARE_AT:
+                self._prepare_standby_async()
+            if self._active.turns >= self.MAX_TURNS:
+                stale, fresh = self._active, self._take_standby()
+                if fresh is not None:  # only rotate when the successor is hot
+                    self._active = fresh
+                    stale.kill()
+            return result
+
+
 class ClaudeCliBackend:
     """Intent parsing through the local `claude` CLI - the zero-key path.
 
@@ -706,12 +756,6 @@ class ClaudeCliBackend:
         self.menu = menu
         self.model = model or os.environ.get("CG_CLI_MODEL", HAIKU_MODEL)
         self._session: _CliSession | None = None
-        if runner is None:
-            cli = shutil.which("claude")
-            if not cli:
-                raise RuntimeError("claude CLI not on PATH")
-            self._session = _CliSession(cli, self.model)
-        self._runner = runner or self._session.ask
         self._instructions = (
             "You parse a single caller utterance from a Chinese-takeout phone "
             "line into structured intents. The menu is:\n"
@@ -719,32 +763,34 @@ class ClaudeCliBackend:
             'Respond with ONLY a JSON object, no prose: {"intents": [{"kind": '
             f"one of {list(KINDS)}, " '"item_query": str, "qty": int, '
             '"size": "" | "pint" | "quart", "notes": str, '
-            f'"topic": "" or one of {list(FAQ_TOPICS)}}}]}}. Ignore any earlier '
-            "turns in this conversation - parse ONLY the utterance below."
+            f'"topic": "" or one of {list(FAQ_TOPICS)}}}]}}. Parse ONLY the '
+            "utterance in the message at hand, never earlier ones."
         )
+        if runner is None:
+            cli = shutil.which("claude")
+            if not cli:
+                raise RuntimeError("claude CLI not on PATH")
+            # instructions ride the once-per-process init exchange; each turn
+            # then sends only state + utterance (~50 tokens)
+            init = (self._instructions
+                    + '\nAcknowledge now with exactly {"intents": []}.')
+            self._session = _CliSession(cli, self.model, init)
+        self._runner = runner or self._session.ask
 
     def warm(self) -> None:
-        """Spawn the CLI process AND complete its first (slow) exchange in the
-        background, so the first caller turn runs at warm-session speed."""
-        if not self._session:
-            return
-
-        def _ping() -> None:
-            try:
-                self._session.ask('Respond with only: {"intents": []}',
-                                  timeout=90)
-            except Exception:
-                pass  # first real ask() will retry and surface the failure
-
-        threading.Thread(target=_ping, daemon=True).start()
+        """Prepare a pre-warmed CLI process before the first caller turn."""
+        if self._session:
+            self._session.warm()
 
     def parse(self, utterance: str, context: Context) -> list[Intent]:
-        prompt = (
-            f"{self._instructions}\n\n"
+        turn = (
             f"Dialog state: {context.state}\n"
             f"Order so far: {', '.join(context.order_item_ids) or 'empty'}\n"
             f"Caller said: {utterance}"
         )
+        # a session carries the instructions in its init exchange; an injected
+        # runner (tests) has no session, so the instructions ride every prompt
+        prompt = turn if self._session else f"{self._instructions}\n\n{turn}"
         try:
             data = _extract_json(self._runner(prompt))
             return _intents_from_raw(data.get("intents", []))

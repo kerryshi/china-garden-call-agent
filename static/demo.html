@@ -440,6 +440,30 @@ function sysSpeak(text, voiceLang){
   });
 }
 
+async function fetchWavUrl(text){
+  const resp = await fetch("/api/tts", {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+  if (!resp.ok){
+    // only a missing model (503) or transport error disables Kokoro;
+    // a 400 (nothing speakable) is a one-off, never a latch
+    if (resp.status === 503){ kokoroAvailable = false; updateVoiceBadge(); }
+    throw new Error("tts " + resp.status);
+  }
+  return URL.createObjectURL(await resp.blob());
+}
+function playUrl(url){
+  return new Promise(res => {
+    audioEl.src = url; audioEl.onended = audioEl.onerror = res;
+    audioEl.play().catch(res);
+  });
+}
+/* First sentence starts playing while the rest is still synthesizing -
+   time-to-first-audio is one short sentence, not the whole reply. */
+function splitFirstSentence(text){
+  const m = text.match(/^([\s\S]{12,}?[.!?])\s+([\s\S]+)$/);
+  return m ? [m[1], m[2]] : [text, null];
+}
+
 async function speak(text, replyLang){
   if (!spkOn) return;
   fillerEl.pause(); speechSynthesis.cancel();
@@ -450,21 +474,17 @@ async function speak(text, replyLang){
       lastEngine = "system"; await sysSpeak(text, "zh-CN");
     } else if (kokoroAvailable){
       try {
-        const resp = await fetch("/api/tts", {method:"POST",
-          headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
-        if (!resp.ok){
-          // only a missing model (503) or transport error disables Kokoro;
-          // a 400 (nothing speakable) is a one-off, never a latch
-          if (resp.status === 503){ kokoroAvailable = false; updateVoiceBadge(); }
-          throw new Error("tts " + resp.status);
-        }
-        const url = URL.createObjectURL(await resp.blob());
+        const [first, rest] = splitFirstSentence(text);
+        const url1 = await fetchWavUrl(first);
+        const restPromise = rest ? fetchWavUrl(rest) : null;
         lastEngine = "kokoro";
-        await new Promise(res => {
-          audioEl.src = url; audioEl.onended = audioEl.onerror = res;
-          audioEl.play().catch(res);
-        });
-        URL.revokeObjectURL(url);
+        await playUrl(url1);
+        URL.revokeObjectURL(url1);
+        if (restPromise && seq === speakSeq){
+          const url2 = await restPromise;
+          await playUrl(url2);
+          URL.revokeObjectURL(url2);
+        }
       } catch (e) {
         if (e instanceof TypeError){ kokoroAvailable = false; updateVoiceBadge(); }
         lastEngine = "system"; await sysSpeak(text, "en-US");
@@ -627,14 +647,17 @@ async function send(){
   caption("you", text);
   logBubble("caller", text);
   // acknowledge only if the answer hasn't already arrived (hybrid: most
-  // turns are instant rules; only Claude-escalated ones need masking)
-  const fillerTimer = setTimeout(() => playFiller(/[一-鿿]/.test(text)), 650);
+  // turns are instant rules; only Claude-escalated ones need masking) -
+  // and again a few seconds later so a slow turn never leaves dead air
+  const isZhTurn = /[一-鿿]/.test(text);
+  const fillerTimer = setTimeout(() => playFiller(isZhTurn), 650);
+  const fillerTimer2 = setTimeout(() => playFiller(isZhTurn), 4800);
   const resp = await fetch("/api/chat", {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({session_id: sessionId, utterance: text}),
   });
   const turn = await resp.json();
-  clearTimeout(fillerTimer);
+  clearTimeout(fillerTimer); clearTimeout(fillerTimer2);
   lastOrder = turn.order; lastTotals = turn.totals; confirmedTicket = turn.ticket;
   renderTicket();
   if (turn.state === "READ_BACK") hit("p-readback");
