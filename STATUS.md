@@ -1,5 +1,17 @@
 # STATUS — china-garden call agent
 
+**Shipped 2026-08-03 (desktop): demo webapp** — in-person sales surface at
+`china_garden.web` (FastAPI, `[web]` extra) + `static/demo.html`: caller phone
+UI (browser TTS via OS voices, tap-to-talk mic when online, offline = macOS
+dictation/typing) beside the restaurant view (live kitchen ticket, simulated
+SMS relay, protections lighting up mid-call, $99-149/mo pricing + ROI calc),
+owner-side copy EN/中文 toggle (Kerry to review the Chinese before any demo).
+133 tests green (6 new in `tests/test_web.py`, failing-first), ruff clean,
+live uvicorn smoke: full order via curl incl. ticket/spoken-text split.
+Demo machine = MacBook Air; run recipe in README. Product/telephony direction
+now lives in the takeline repo (see `takeline/HANDOFF-GTM.md`); this repo stays
+the family instance + demo.
+
 **Where we are:** slice 1 (conversation core) BUILT, reviewed, and hardened —
 `eff81c9`, plus safety-lens hardening `8d8123c` (ingredient-question handoffs,
 PCI phrasings, Haiku clamp). A full takeout call runs end-to-end in text: AI-disclosed greeting →
