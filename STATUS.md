@@ -1,5 +1,15 @@
 # STATUS — china-garden call agent
 
+**Round 7: pre-pitch QA + pricing locked** — 22-check live battery (safety
+handoffs en+zh, PCI, session isolation, goodbye guard, corrections, TTS,
+page JS/i18n/id integrity) found ONE real bug: done-phrase remainders
+("make it two egg rolls, that's all") parsed as additions and inflated the
+order 3→5; now routed correction-first (removal → set_qty → adds), two
+failing-first regressions, 175 tests green on BOTH machines, Mac demo log
+clean. Pricing per synthetic study + field playbook (takeline/PRICING.md):
+site shows $129/mo flat + founding-$99 note; ?price= variants for pitch
+laddering. Demo machine current at 999168b.
+
 **Shipped 2026-08-03 (desktop, round 3): voice-bug fix + bilingual display +
 Haiku wiring** — root cause of "voice sounds terrible": the greeting's zh tail
 made /api/tts 400 and the page latched onto the system voice for the whole
