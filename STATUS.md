@@ -1,12 +1,14 @@
 # STATUS — china-garden call agent
 
+_Internal working log. Start at [README.md](README.md)._
+
 **Round 7: pre-pitch QA + pricing locked** — 22-check live battery (safety
 handoffs en+zh, PCI, session isolation, goodbye guard, corrections, TTS,
 page JS/i18n/id integrity) found ONE real bug: done-phrase remainders
 ("make it two egg rolls, that's all") parsed as additions and inflated the
 order 3→5; now routed correction-first (removal → set_qty → adds), two
 failing-first regressions, 175 tests green on BOTH machines, Mac demo log
-clean. Pricing per synthetic study + field playbook (takeline/PRICING.md):
+clean. Pricing per synthetic study + field playbook (separate repo):
 site shows $129/mo flat + founding-$99 note; ?price= variants for pitch
 laddering. Demo machine current at 999168b.
 
@@ -79,7 +81,7 @@ owner-side copy EN/中文 toggle (Kerry to review the Chinese before any demo).
 133 tests green (6 new in `tests/test_web.py`, failing-first), ruff clean,
 live uvicorn smoke: full order via curl incl. ticket/spoken-text split.
 Demo machine = MacBook Air; run recipe in README. Product/telephony direction
-now lives in the takeline repo (see `takeline/HANDOFF-GTM.md`); this repo stays
+now lives in the separate takeline repo; this repo stays
 the family instance + demo.
 
 **Where we are:** slice 1 (conversation core) BUILT, reviewed, and hardened —

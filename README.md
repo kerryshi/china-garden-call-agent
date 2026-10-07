@@ -1,25 +1,38 @@
 # China Garden Call Agent
 
-Inbound AI phone agent for China Garden (3207 S Holden Rd, Greensboro NC) — the family's
-Chinese takeout restaurant. Scope: **FAQ + takeout order-taking with mandatory read-back**
-(the top review complaint is order accuracy — read-back is the product story).
+[![CI](https://github.com/kerryshi/china-garden-call-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kerryshi/china-garden-call-agent/actions/workflows/ci.yml)
+
+A bilingual (English/中文) AI phone agent that takes takeout orders for my family's Chinese
+restaurant. Rules parse the clean turns instantly, Claude Haiku parses the rest, and a state
+machine, not the model, enforces the order read-back, so an order cannot be confirmed without
+it on any backend.
+
+- **Hard rules, enforced in code:** discloses that it is an AI, keeps payment off the call (PCI),
+  hands every allergen question to a human, and transfers to a person on request.
+- **Tested adversarially:** 175 pytest tests, including safety regressions written failing-first
+  after adversarial tests caught an order being confirmed on "no, that's not right"
+  (`tests/test_review_regressions.py`, `tests/test_safety_regressions.py`).
+- **Status:** conversation core and browser demo built and running end-to-end in text and voice;
+  it has not taken a live phone call yet.
+
+China Garden (3207 S Holden Rd, Greensboro NC) is the family's takeout restaurant. Scope:
+**FAQ + takeout order-taking with mandatory read-back**; the top review complaint is order
+accuracy, so read-back is the product story.
 
 Architecture (decided 2026-07-01): hybrid — local voice (CPU STT/TTS) on an on-prem box with
 FXO ingress, humans-first ring → AI rollover; the **brain is cloud Claude Haiku** behind a
 swappable backend interface. This repo starts with the conversation core (text in → text out);
 telephony and voice land later on the on-prem box.
 
-Hard rules baked into the agent: disclose AI, keep payments off the call (PCI), hard-refuse
-allergen safety questions (liability — hand off to a human), human fallback on request.
-
 ## Quickstart
 
 ```
 python -m venv .venv
-.venv\Scripts\pip install -e .[dev]
-.venv\Scripts\python -m pytest -q
-.venv\Scripts\python -m china_garden.cli          # interactive call simulation
-.venv\Scripts\python -m china_garden.cli --script demo   # scripted demo conversation
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+python -m pytest -q
+python -m china_garden.cli                  # interactive call simulation
+python -m china_garden.cli --script demo    # scripted demo conversation
 ```
 
 ## Demo webapp (in-person sales surface)
@@ -31,9 +44,9 @@ pricing/ROI. All page copy has an English/中文 toggle, **and the agent itself 
 Chinese**: a turn in 中文 is parsed and answered in 中文 (per-turn; English works as before).
 
 ```
-.venv\Scripts\pip install -e .[web,tts]
+pip install -e ".[web,tts]"
 bash scripts/fetch-tts.sh          # one-time ~340MB: Kokoro-82M voice (Apache-2.0)
-.venv\Scripts\python -m uvicorn china_garden.web:app --port 8000
+python -m uvicorn china_garden.web:app --port 8000
 # open http://localhost:8000
 ```
 
