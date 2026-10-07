@@ -3,9 +3,9 @@
 [![CI](https://github.com/kerryshi/china-garden-call-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kerryshi/china-garden-call-agent/actions/workflows/ci.yml)
 
 A bilingual (English/中文) AI phone agent that takes takeout orders for my family's Chinese
-restaurant. Rules parse the clean turns instantly, Claude Haiku parses the rest, and a state
-machine, not the model, enforces the order read-back, so an order cannot be confirmed without
-it on any backend.
+restaurant. In its hybrid mode, rules parse the clean turns instantly and Claude Haiku parses
+the rest. On every backend a state machine, not the model, enforces the order read-back, so
+no order is confirmed without one.
 
 - **Hard rules, enforced in code:** discloses that it is an AI, keeps payment off the call (PCI),
   hands every allergen question to a human, and transfers to a person on request.
@@ -57,9 +57,10 @@ for recognition language). Offline, use macOS dictation — press fn twice — o
 To show the page on a phone without deploying: `cloudflared tunnel --url http://localhost:8000`.
 
 **Understanding backend** (`CG_BACKEND`): `rule` (default — deterministic, offline, rigid),
-`claude` (the real brain on the **Claude Max plan** — headless `claude -p` on the machine's
-Claude Code login, no API key; ~8–12s/turn), or `haiku` (direct API, needs a key; fast lane).
-Terminal run with the subscription brain:
+`claude` (hybrid: rules first, unparsed turns go to Claude Haiku through the local Claude Code
+CLI, `claude -p`; a dev/demo convenience that reuses the machine's login, ~8–12s on an escalated
+turn), or `haiku` (Claude Haiku via the Anthropic API, needs a key; the deployment path).
+Terminal run with the hybrid backend:
 
 ```
 CG_BACKEND=claude .venv/bin/python -m uvicorn china_garden.web:app --port 8000
